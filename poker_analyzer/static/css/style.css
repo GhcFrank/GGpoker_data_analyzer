@@ -93,6 +93,130 @@ h1 {
   border-color: var(--muted);
 }
 
+.filter-bar {
+  background: color-mix(in srgb, var(--bg1) 90%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+
+.filter-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.filter-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.filter-hint {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 220px)) 1fr;
+  gap: 14px 18px;
+  align-items: start;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-field-wide {
+  grid-column: 1 / -1;
+}
+
+.filter-field label,
+.field-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.filter-field input[type="date"] {
+  appearance: none;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  padding: 8px 10px;
+  color-scheme: dark;
+}
+
+.filter-field input[type="date"]:focus {
+  outline: 1px solid var(--accent);
+  border-color: var(--accent);
+}
+
+.stakes-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stake-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.88rem;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.stake-chip input {
+  accent-color: var(--accent);
+}
+
+.stake-chip.has-data {
+  color: var(--text);
+}
+
+.stake-chip:has(input:checked) {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.stake-chip .tag {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.filter-status {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.empty-hint {
+  margin: 0 0 10px;
+  color: var(--accent-2);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
 .panel-toolbar {
   background: color-mix(in srgb, var(--bg1) 88%, transparent);
   border: 1px solid var(--line);
@@ -230,4 +354,7 @@ h1 {
   .page { padding: 20px 14px 48px; }
   .header { flex-direction: column; }
   .chart-wrap { height: 300px; }
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
 }

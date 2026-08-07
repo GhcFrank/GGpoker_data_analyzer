@@ -20,6 +20,35 @@
       </div>
     </header>
 
+    <section class="filter-bar" aria-label="数据筛选器">
+      <div class="filter-head">
+        <div>
+          <h2 class="filter-title">数据筛选</h2>
+          <p class="filter-hint">默认全选当前数据范围与级别；修改后点击「分析」刷新下方结果。</p>
+        </div>
+        <div class="filter-actions">
+          <button type="button" class="btn ghost" id="resetFilterBtn">重置为全部</button>
+          <button type="button" class="btn" id="analyzeBtn">分析</button>
+        </div>
+      </div>
+
+      <div class="filter-grid">
+        <div class="filter-field">
+          <label for="dateFrom">开始日期</label>
+          <input type="date" id="dateFrom" />
+        </div>
+        <div class="filter-field">
+          <label for="dateTo">结束日期</label>
+          <input type="date" id="dateTo" />
+        </div>
+        <div class="filter-field filter-field-wide">
+          <span class="field-label">游戏级别（盲注）</span>
+          <div class="stakes-group" id="stakesGroup"></div>
+        </div>
+      </div>
+      <p class="filter-status" id="filterStatus">尚未分析。请点击「分析」。</p>
+    </section>
+
     <section class="panel-toolbar" aria-label="分析面板开关">
       <p class="toolbar-label">分析面板</p>
       <div class="toggle-group" id="panelToggles">
@@ -44,9 +73,9 @@
         <div class="chart-wrap">
           <canvas id="profitChart"></canvas>
         </div>
+        <p class="empty-hint" id="profitEmpty" hidden>当前筛选条件下没有手牌，请调整筛选器后重新分析。</p>
       </section>
 
-      <!-- Reserved slots for future metrics — toggle buttons will reveal them -->
       <section class="analysis-panel placeholder" id="panel-reserved_vpip" data-metric="reserved_vpip" hidden>
         <div class="panel-head">
           <div>

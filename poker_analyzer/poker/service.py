@@ -4,6 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from poker.filters import FilterSpec, apply_filter, filter_options
 from poker.metrics.base import get_metric, list_metrics, load_builtin_metrics
 from poker.models import HandDataset
 from poker.sources import LocalDirectorySource
@@ -43,12 +44,25 @@ class AnalysisService:
                 "start": ds.hands[0].datetime.isoformat(sep=" ") if ds.hands else None,
                 "end": ds.hands[-1].datetime.isoformat(sep=" ") if ds.hands else None,
             },
+            "filter": filter_options(ds),
             "metrics": list_metrics(),
         }
 
-    def compute_metric(self, metric_id: str) -> dict[str, Any]:
+    def filtered_dataset(self, spec: FilterSpec | None = None) -> HandDataset:
+        return apply_filter(self.dataset, spec)
+
+    def compute_metric(
+        self,
+        metric_id: str,
+        spec: FilterSpec | None = None,
+    ) -> dict[str, Any]:
         metric = get_metric(metric_id)
-        return metric.compute(self.dataset)
+        filtered = self.filtered_dataset(spec)
+        result = metric.compute(filtered)
+        result["filter"] = (spec or FilterSpec()).to_dict()
+        result["filtered_hand_count"] = len(filtered.hands)
+        result["total_hand_count"] = len(self.dataset.hands)
+        return result
 
 
 @lru_cache(maxsize=1)

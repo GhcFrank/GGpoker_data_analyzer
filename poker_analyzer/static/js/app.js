@@ -8,7 +8,9 @@
   const state = {
     open: new Set(),
     profitChart: null,
-    loadedMetrics: new Set(),
+    analyzed: false,
+    summary: null,
+    filterDefaults: null,
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -61,36 +63,136 @@
     for (const def of panelDefs) {
       const panel = document.getElementById(`panel-${def.id}`);
       if (!panel) continue;
-      const shouldShow = state.open.has(def.id);
-      panel.hidden = !shouldShow;
-      if (shouldShow && def.live && !state.loadedMetrics.has(def.id)) {
-        loadMetric(def.id);
-      }
+      panel.hidden = !state.open.has(def.id);
     }
+  }
+
+  function setupFilter(summary) {
+    const filter = summary.filter || {};
+    state.filterDefaults = {
+      date_from: filter.date_from || "",
+      date_to: filter.date_to || "",
+      stakes: (filter.stakes_presets || []).map((s) => s.id),
+    };
+
+    const dateFrom = $("#dateFrom");
+    const dateTo = $("#dateTo");
+    dateFrom.min = filter.date_from || "";
+    dateFrom.max = filter.date_to || "";
+    dateTo.min = filter.date_from || "";
+    dateTo.max = filter.date_to || "";
+    dateFrom.value = state.filterDefaults.date_from;
+    dateTo.value = state.filterDefaults.date_to;
+
+    const host = $("#stakesGroup");
+    host.innerHTML = "";
+    for (const stake of filter.stakes_presets || []) {
+      const label = document.createElement("label");
+      label.className = "stake-chip" + (stake.has_data ? " has-data" : "");
+      label.innerHTML = `
+        <input type="checkbox" value="${stake.id}" checked />
+        <span>${stake.label}</span>
+        ${stake.has_data ? "" : '<span class="tag">预留</span>'}
+      `;
+      host.appendChild(label);
+    }
+  }
+
+  function resetFilter() {
+    if (!state.filterDefaults) return;
+    $("#dateFrom").value = state.filterDefaults.date_from;
+    $("#dateTo").value = state.filterDefaults.date_to;
+    for (const input of document.querySelectorAll("#stakesGroup input[type=checkbox]")) {
+      input.checked = true;
+    }
+  }
+
+  function readFilter() {
+    const stakes = [...document.querySelectorAll("#stakesGroup input[type=checkbox]:checked")]
+      .map((el) => el.value);
+    return {
+      date_from: $("#dateFrom").value || null,
+      date_to: $("#dateTo").value || null,
+      stakes,
+    };
   }
 
   async function loadSummary() {
     const data = await fetchJSON("/api/summary");
+    state.summary = data;
     const range =
       data.date_range?.start && data.date_range?.end
         ? `${data.date_range.start} → ${data.date_range.end}`
         : "无数据";
     $("#summaryText").textContent =
       `已加载 ${data.hand_count} 手 · ${data.file_count} 个文件 · ${range}`;
+    setupFilter(data);
     return data;
   }
 
-  async function loadMetric(id) {
-    if (id === "profit_curve") {
-      const data = await fetchJSON("/api/metrics/profit_curve");
-      // Prefer dedicated alias too — both work
-      renderProfit(data);
-      state.loadedMetrics.add(id);
+  async function analyze() {
+    const filter = readFilter();
+    if (!filter.stakes.length) {
+      $("#filterStatus").textContent = "请至少选择一个游戏级别。";
+      return;
+    }
+
+    const btn = $("#analyzeBtn");
+    btn.disabled = true;
+    btn.textContent = "分析中…";
+    $("#filterStatus").textContent = "正在按筛选条件计算…";
+
+    try {
+      // Refresh every open live panel with the same filter
+      for (const def of panelDefs) {
+        if (!state.open.has(def.id) || !def.live) continue;
+        if (def.id === "profit_curve") {
+          const data = await fetchJSON("/api/metrics/profit_curve", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(filter),
+          });
+          renderProfit(data);
+        }
+      }
+
+      // If profit panel is closed, still warm-load nothing; user can reopen + re-analyze
+      if (!state.open.has("profit_curve")) {
+        // Keep analyzed=false for closed live panels until opened+analyzed
+      }
+
+      state.analyzed = true;
+      const stakesLabel = filter.stakes.join(", ") || "无";
+      $("#filterStatus").textContent =
+        `已分析：${filter.date_from || "?"} ~ ${filter.date_to || "?"} · 级别 ${stakesLabel}`;
+    } catch (err) {
+      $("#filterStatus").textContent = `分析失败: ${err.message}`;
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "分析";
     }
   }
 
   function renderProfit(data) {
+    const empty = $("#profitEmpty");
+    const chartWrap = document.querySelector("#panel-profit_curve .chart-wrap");
     const stats = $("#profitStats");
+
+    if (!data.hand_count) {
+      empty.hidden = false;
+      if (chartWrap) chartWrap.hidden = true;
+      stats.innerHTML = "";
+      if (state.profitChart) {
+        state.profitChart.destroy();
+        state.profitChart = null;
+      }
+      return;
+    }
+
+    empty.hidden = true;
+    if (chartWrap) chartWrap.hidden = false;
+
     const before = data.total_profit_before_rake;
     const after = data.total_profit_after_rake;
     stats.innerHTML = `
@@ -190,26 +292,25 @@
   async function init() {
     renderToggles();
     await loadSummary();
-    // Phase 1: open profit panel by default so first visit is useful
     state.open.add("profit_curve");
     renderToggles();
     syncPanels();
 
+    $("#analyzeBtn").addEventListener("click", () => analyze());
+    $("#resetFilterBtn").addEventListener("click", () => {
+      resetFilter();
+      $("#filterStatus").textContent = "已重置为全部数据，点击「分析」生效。";
+    });
+
     $("#reloadBtn").addEventListener("click", async () => {
-      state.loadedMetrics.clear();
       await fetchJSON("/api/reload", { method: "POST" });
       await loadSummary();
-      syncPanels();
-      // Force refresh open live panels
-      for (const id of state.open) {
-        const def = panelDefs.find((d) => d.id === id);
-        if (def?.live) {
-          state.loadedMetrics.delete(id);
-          await loadMetric(id);
-          state.loadedMetrics.add(id);
-        }
-      }
+      state.analyzed = false;
+      $("#filterStatus").textContent = "数据已重新扫描，请再次点击「分析」。";
     });
+
+    // Default = all data; run once so first visit is useful
+    await analyze();
   }
 
   init().catch((err) => {
