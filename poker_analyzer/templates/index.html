@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <script src="/static/js/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div>
+        <p class="eyebrow">Local Hand History</p>
+        <h1>Poker Analyzer</h1>
+        <p class="subtitle" id="summaryText">正在加载本地牌谱…</p>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="btn ghost" id="reloadBtn">重新扫描</button>
+      </div>
+    </header>
+
+    <section class="panel-toolbar" aria-label="分析面板开关">
+      <p class="toolbar-label">分析面板</p>
+      <div class="toggle-group" id="panelToggles">
+        <!-- Buttons injected from registered metrics + reserved slots -->
+      </div>
+    </section>
+
+    <main class="panels" id="panels">
+      <section
+        class="analysis-panel"
+        id="panel-profit_curve"
+        data-metric="profit_curve"
+        hidden
+      >
+        <div class="panel-head">
+          <div>
+            <h2>盈利曲线</h2>
+            <p class="panel-desc">横坐标为手数，纵坐标为累计盈利；两条折线分别表示抽水前与抽水后。</p>
+          </div>
+          <div class="stat-row" id="profitStats"></div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="profitChart"></canvas>
+        </div>
+      </section>
+
+      <!-- Reserved slots for future metrics — toggle buttons will reveal them -->
+      <section class="analysis-panel placeholder" id="panel-reserved_vpip" data-metric="reserved_vpip" hidden>
+        <div class="panel-head">
+          <div>
+            <h2>入池率 (VPIP)</h2>
+            <p class="panel-desc">预留面板。接入 metric 插件后即可显示。</p>
+          </div>
+        </div>
+        <div class="placeholder-body">后续指标位置</div>
+      </section>
+
+      <section class="analysis-panel placeholder" id="panel-reserved_extra" data-metric="reserved_extra" hidden>
+        <div class="panel-head">
+          <div>
+            <h2>更多分析</h2>
+            <p class="panel-desc">预留面板，可按同样按钮开关模式扩展。</p>
+          </div>
+        </div>
+        <div class="placeholder-body">后续指标位置</div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

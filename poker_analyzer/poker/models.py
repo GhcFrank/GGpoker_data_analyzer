@@ -1,0 +1,80 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
+
+
+@dataclass
+class Hand:
+    """Normalized representation of a single poker hand."""
+
+    hand_id: str
+    datetime: datetime
+    table_name: str
+    stakes: str
+    max_players: int
+    hero_seat: int | None
+    hero_cards: str | None
+    hero_invested: float
+    hero_collected: float
+    hero_returned: float
+    total_pot: float
+    rake: float
+    jackpot: float
+    bingo: float
+    fortune: float
+    tax: float
+    source_file: str
+    raw_summary: str = ""
+    went_to_flop: bool = False
+    hero_vpip: bool = False
+    extra: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def fees(self) -> float:
+        """All pot deductions (rake + GG side fees)."""
+        return self.rake + self.jackpot + self.bingo + self.fortune + self.tax
+
+    @property
+    def net_invested(self) -> float:
+        """Chips Hero put into the pot after uncalled returns."""
+        return round(self.hero_invested - self.hero_returned, 6)
+
+    @property
+    def profit_after_rake(self) -> float:
+        """Real chip delta for Hero (after rake)."""
+        return round(self.hero_collected - self.net_invested, 6)
+
+    @property
+    def rake_share(self) -> float:
+        """
+        Rake attributed to Hero for pre-rake profit.
+
+        Sole / multi-way collectors: proportional to collected amount.
+        If Hero did not collect, share is 0 (standard tracker convention).
+        """
+        if self.hero_collected <= 0 or self.rake <= 0:
+            return 0.0
+        # Prefer explicit total collected from extra if available; else use pot - fees.
+        total_collected = self.extra.get("total_collected")
+        if not total_collected or total_collected <= 0:
+            total_collected = max(self.total_pot - self.fees, self.hero_collected)
+        share = self.rake * (self.hero_collected / total_collected)
+        return round(share, 6)
+
+    @property
+    def profit_before_rake(self) -> float:
+        """Chip delta as if Hero's share of rake were returned."""
+        return round(self.profit_after_rake + self.rake_share, 6)
+
+
+@dataclass
+class HandDataset:
+    """In-memory collection of parsed hands, chronological."""
+
+    hands: list[Hand] = field(default_factory=list)
+    source_label: str = "local"
+
+    def sorted_hands(self) -> list[Hand]:
+        return sorted(self.hands, key=lambda h: (h.datetime, h.hand_id))
