@@ -11,7 +11,7 @@
   <div class="page">
     <header class="header">
       <div>
-        <p class="eyebrow">Local Hand History</p>
+        <p class="eyebrow">Local Offline</p>
         <h1>Poker Analyzer</h1>
         <p class="subtitle" id="summaryText">正在加载本地牌谱…</p>
       </div>
@@ -19,6 +19,21 @@
         <button type="button" class="btn ghost" id="reloadBtn">重新扫描</button>
       </div>
     </header>
+
+    <section class="data-bar" aria-label="数据目录">
+      <div class="data-bar-head">
+        <div>
+          <h2 class="filter-title">数据目录</h2>
+          <p class="filter-hint">选择存放 GG Poker 文本牌谱（.txt）的本地文件夹；路径会记住，下次启动自动使用。</p>
+        </div>
+      </div>
+      <div class="data-path-row">
+        <input type="text" id="dataDirInput" class="path-input" spellcheck="false" placeholder="例如 F:\poker_data\all\all_hand" />
+        <button type="button" class="btn ghost" id="browseDirBtn">浏览…</button>
+        <button type="button" class="btn" id="applyDirBtn">加载</button>
+      </div>
+      <p class="filter-status" id="dataDirStatus">当前路径将显示在这里。</p>
+    </section>
 
     <section class="filter-bar" aria-label="数据筛选器">
       <div class="filter-head">
@@ -66,7 +81,7 @@
         <div class="panel-head">
           <div>
             <h2>盈利曲线</h2>
-            <p class="panel-desc">横坐标为手数，纵坐标为累计盈利；两条折线分别表示抽水前与抽水后。</p>
+            <p class="panel-desc">横坐标为手数，纵坐标为累计盈利；两条折线分别表示费用前（含加回 Rake+Jackpot）与费用后（真实筹码）。</p>
           </div>
           <div class="stat-row" id="profitStats"></div>
         </div>

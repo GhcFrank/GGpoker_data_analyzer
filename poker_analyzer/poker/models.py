@@ -46,26 +46,35 @@ class Hand:
         """Real chip delta for Hero (after rake)."""
         return round(self.hero_collected - self.net_invested, 6)
 
-    @property
-    def rake_share(self) -> float:
-        """
-        Rake attributed to Hero for pre-rake profit.
-
-        Sole / multi-way collectors: proportional to collected amount.
-        If Hero did not collect, share is 0 (standard tracker convention).
-        """
-        if self.hero_collected <= 0 or self.rake <= 0:
+    def _collector_share(self, amount: float) -> float:
+        if self.hero_collected <= 0 or amount <= 0:
             return 0.0
-        # Prefer explicit total collected from extra if available; else use pot - fees.
         total_collected = self.extra.get("total_collected")
         if not total_collected or total_collected <= 0:
             total_collected = max(self.total_pot - self.fees, self.hero_collected)
-        share = self.rake * (self.hero_collected / total_collected)
-        return round(share, 6)
+        return round(amount * (self.hero_collected / total_collected), 6)
+
+    @property
+    def rake_share(self) -> float:
+        """
+        Pot fees attributed to Hero for pre-fee profit (rake + jackpot + ...).
+
+        Winner-pays: proportional to collected amount; 0 if Hero did not collect.
+        Matches GG-style 'before fees' totals (Rake and Jackpot both added back).
+        """
+        return self._collector_share(self.fees)
+
+    @property
+    def rake_only_share(self) -> float:
+        return self._collector_share(self.rake)
+
+    @property
+    def jackpot_share(self) -> float:
+        return self._collector_share(self.jackpot)
 
     @property
     def profit_before_rake(self) -> float:
-        """Chip delta as if Hero's share of rake were returned."""
+        """Chip delta as if Hero's share of pot fees (rake+jackpot+...) were returned."""
         return round(self.profit_after_rake + self.rake_share, 6)
 
     @property

@@ -8,11 +8,11 @@ from poker.models import HandDataset
 
 @register
 class ProfitCurveMetric(Metric):
-    """Cumulative Hero profit by hand count — before and after rake."""
+    """Cumulative Hero profit by hand count — before and after fees."""
 
     id = "profit_curve"
     name = "盈利曲线"
-    description = "按手数累计的抽水前 / 抽水后盈利"
+    description = "按手数累计的费用前 / 抽水后盈利"
     chart_type = "line"
 
     def compute(self, dataset: HandDataset) -> dict[str, Any]:
@@ -40,6 +40,8 @@ class ProfitCurveMetric(Metric):
             "total_profit_before_rake": before[-1] if before else 0.0,
             "total_profit_after_rake": after[-1] if after else 0.0,
             "total_rake_paid": round(sum(h.rake_share for h in hands), 6),
+            "total_rake_only": round(sum(h.rake_only_share for h in hands), 6),
+            "total_jackpot_share": round(sum(h.jackpot_share for h in hands), 6),
             "series": {
                 "hand_index": hand_index,
                 "profit_before_rake": before,

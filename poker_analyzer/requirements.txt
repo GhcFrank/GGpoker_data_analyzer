@@ -1,5 +1,2 @@
-fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
-pydantic>=2.9.0
-jinja2>=3.1.4
-python-multipart>=0.0.12
+# No third-party packages required.
+# Poker Analyzer runs on Python 3.10+ standard library only.

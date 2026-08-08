@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from poker.config import load_data_dir, save_data_dir
 from poker.filters import FilterSpec, apply_filter, filter_options
 from poker.metrics.base import get_metric, list_metrics, load_builtin_metrics
 from poker.models import HandDataset
 from poker.sources import LocalDirectorySource
-
-# Default: repo's ../data relative to this package's project root
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DATA_DIR = PROJECT_ROOT.parent / "data"
 
 
 class AnalysisService:
@@ -19,8 +15,16 @@ class AnalysisService:
 
     def __init__(self, data_dir: Path | str | None = None) -> None:
         load_builtin_metrics()
-        self.data_dir = Path(data_dir) if data_dir else DEFAULT_DATA_DIR
+        self.data_dir = Path(data_dir).expanduser().resolve() if data_dir else load_data_dir()
         self._dataset: HandDataset | None = None
+
+    def set_data_dir(self, data_dir: Path | str, *, persist: bool = True) -> Path:
+        path = Path(data_dir).expanduser().resolve()
+        if persist:
+            save_data_dir(path)
+        self.data_dir = path
+        self._dataset = None
+        return path
 
     def reload(self) -> HandDataset:
         source = LocalDirectorySource(self.data_dir)
@@ -37,6 +41,7 @@ class AnalysisService:
     def summary(self) -> dict[str, Any]:
         ds = self.dataset
         return {
+            "data_dir": str(self.data_dir),
             "source": ds.source_label,
             "hand_count": len(ds.hands),
             "file_count": len({h.source_file for h in ds.hands}),
@@ -65,6 +70,21 @@ class AnalysisService:
         return result
 
 
-@lru_cache(maxsize=1)
+_service: AnalysisService | None = None
+
+
 def get_service() -> AnalysisService:
-    return AnalysisService()
+    global _service
+    if _service is None:
+        _service = AnalysisService()
+    return _service
+
+
+def reset_service(data_dir: Path | str | None = None) -> AnalysisService:
+    global _service
+    if data_dir is None:
+        _service = AnalysisService()
+    else:
+        _service = AnalysisService(data_dir)
+        save_data_dir(_service.data_dir)
+    return _service

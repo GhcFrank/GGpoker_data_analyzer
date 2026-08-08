@@ -29,7 +29,17 @@
   async function fetchJSON(url, options) {
     const res = await fetch(url, options);
     if (!res.ok) {
-      const detail = await res.text();
+      let detail = res.statusText;
+      try {
+        const payload = await res.json();
+        detail = payload.detail || JSON.stringify(payload);
+      } catch {
+        try {
+          detail = await res.text();
+        } catch {
+          /* ignore */
+        }
+      }
       throw new Error(detail || res.statusText);
     }
     return res.json();
@@ -117,9 +127,17 @@
     };
   }
 
-  async function loadSummary() {
-    const data = await fetchJSON("/api/summary");
+  function applySummary(data) {
     state.summary = data;
+    if (data.data_dir) {
+      $("#dataDirInput").value = data.data_dir;
+      $("#dataDirStatus").textContent = `当前: ${data.data_dir}`;
+    }
+    if (data.error) {
+      $("#summaryText").textContent = `目录无法读取: ${data.error}`;
+      setupFilter(data);
+      return data;
+    }
     const range =
       data.date_range?.start && data.date_range?.end
         ? `${data.date_range.start} → ${data.date_range.end}`
@@ -128,6 +146,93 @@
       `已加载 ${data.hand_count} 手 · ${data.file_count} 个文件 · ${range}`;
     setupFilter(data);
     return data;
+  }
+
+  async function loadSummary() {
+    const data = await fetchJSON("/api/summary");
+    return applySummary(data);
+  }
+
+  async function applyDataDir() {
+    const path = $("#dataDirInput").value.trim();
+    if (!path) {
+      $("#dataDirStatus").textContent = "请先填写或浏览选择目录。";
+      return;
+    }
+    const btn = $("#applyDirBtn");
+    btn.disabled = true;
+    btn.textContent = "加载中…";
+    $("#dataDirStatus").textContent = "正在切换数据目录…";
+    try {
+      const result = await fetchJSON("/api/data-dir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      if (result.summary) {
+        applySummary(result.summary);
+      } else {
+        $("#dataDirInput").value = result.data_dir || path;
+        $("#dataDirStatus").textContent = result.warning
+          ? `已切换，但加载失败: ${result.warning}`
+          : `已切换到: ${result.data_dir}`;
+      }
+      state.analyzed = false;
+      $("#filterStatus").textContent = "数据目录已更新，请点击「分析」。";
+      if (result.summary && result.summary.hand_count >= 0) {
+        await analyze();
+      }
+    } catch (err) {
+      $("#dataDirStatus").textContent = `切换失败: ${err.message}`;
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "加载";
+    }
+  }
+
+  async function browseDataDir() {
+    const btn = $("#browseDirBtn");
+    btn.disabled = true;
+    $("#dataDirStatus").textContent = "正在打开文件夹窗口，请看任务栏或桌面弹窗…";
+    try {
+      const started = await fetchJSON("/api/browse-dir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initial: $("#dataDirInput").value.trim() || null }),
+      });
+      if (started.message) {
+        $("#dataDirStatus").textContent = started.message;
+      }
+
+      const deadline = Date.now() + 10 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 400));
+        const status = await fetchJSON("/api/browse-dir/status");
+        if (status.status === "pending") continue;
+        if (status.status === "cancelled") {
+          $("#dataDirStatus").textContent = "已取消选择。";
+          return;
+        }
+        if (status.status === "error") {
+          throw new Error(status.error || "未知错误");
+        }
+        if (status.status === "done" && status.path) {
+          $("#dataDirInput").value = status.path;
+          $("#dataDirStatus").textContent = `已选择: ${status.path}（点击「加载」生效）`;
+          return;
+        }
+        $("#dataDirStatus").textContent = "未选择目录。";
+        return;
+      }
+      $("#dataDirStatus").textContent = "选择超时。也可直接粘贴路径后点「加载」。";
+    } catch (err) {
+      $("#dataDirStatus").textContent =
+        `浏览失败: ${err.message}（也可直接粘贴路径后点「加载」）`;
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   async function analyze() {
@@ -143,7 +248,6 @@
     $("#filterStatus").textContent = "正在按筛选条件计算…";
 
     try {
-      // Refresh every open live panel with the same filter
       for (const def of panelDefs) {
         if (!state.open.has(def.id) || !def.live) continue;
         if (def.id === "profit_curve") {
@@ -154,11 +258,6 @@
           });
           renderProfit(data);
         }
-      }
-
-      // If profit panel is closed, still warm-load nothing; user can reopen + re-analyze
-      if (!state.open.has("profit_curve")) {
-        // Keep analyzed=false for closed live panels until opened+analyzed
       }
 
       state.analyzed = true;
@@ -195,22 +294,29 @@
 
     const before = data.total_profit_before_rake;
     const after = data.total_profit_after_rake;
+    const fees = data.total_rake_paid;
+    const rakeOnly = data.total_rake_only;
+    const jackpot = data.total_jackpot_share;
     stats.innerHTML = `
       <div class="stat">
         <span class="label">手数</span>
         <span class="value">${data.hand_count}</span>
       </div>
       <div class="stat">
-        <span class="label">总计盈利（抽水前）</span>
+        <span class="label">总计盈利（费用前）</span>
         <span class="value ${moneyClass(before)}">${fmtMoney(before)}</span>
       </div>
       <div class="stat">
-        <span class="label">总计真实盈利（抽水后）</span>
+        <span class="label">总计真实盈利（费用后）</span>
         <span class="value ${moneyClass(after)}">${fmtMoney(after)}</span>
       </div>
       <div class="stat">
-        <span class="label">累计抽水</span>
-        <span class="value">${fmtMoney(data.total_rake_paid)}</span>
+        <span class="label">累计费用（Rake+JP）</span>
+        <span class="value">${fmtMoney(fees)}</span>
+      </div>
+      <div class="stat">
+        <span class="label">其中 Rake / Jackpot</span>
+        <span class="value">${fmtMoney(rakeOnly ?? 0)} / ${fmtMoney(jackpot ?? 0)}</span>
       </div>
     `;
 
@@ -233,14 +339,14 @@
         labels,
         datasets: [
           {
-            label: "抽水前",
+            label: "费用前",
             data: data.series.profit_before_rake,
             borderColor: "#c4a35a",
             backgroundColor: "rgba(196, 163, 90, 0.12)",
             ...datasetCommon,
           },
           {
-            label: "抽水后",
+            label: "费用后",
             data: data.series.profit_after_rake,
             borderColor: "#3d9b7a",
             backgroundColor: "rgba(61, 155, 122, 0.12)",
@@ -301,6 +407,14 @@
       resetFilter();
       $("#filterStatus").textContent = "已重置为全部数据，点击「分析」生效。";
     });
+    $("#browseDirBtn").addEventListener("click", () => browseDataDir());
+    $("#applyDirBtn").addEventListener("click", () => applyDataDir());
+    $("#dataDirInput").addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        applyDataDir();
+      }
+    });
 
     $("#reloadBtn").addEventListener("click", async () => {
       await fetchJSON("/api/reload", { method: "POST" });
@@ -309,7 +423,6 @@
       $("#filterStatus").textContent = "数据已重新扫描，请再次点击「分析」。";
     });
 
-    // Default = all data; run once so first visit is useful
     await analyze();
   }
 

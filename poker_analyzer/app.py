@@ -1,90 +1,285 @@
+"""
+Poker Analyzer — local offline HTTP app (Python stdlib only).
+
+Bind to 127.0.0.1; no third-party packages required.
+"""
+
 from __future__ import annotations
 
+import json
+import mimetypes
+import re
+import sys
+import threading
+import traceback
+import webbrowser
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field
-from starlette.requests import Request
-
+from poker.config import browse_job_status, load_data_dir, start_browse_job
 from poker.filters import FilterSpec
 from poker.service import get_service
 
 BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+TEMPLATE_PATH = BASE_DIR / "templates" / "index.html"
 
-app = FastAPI(title="Poker Analyzer", version="0.1.0")
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-
-
-class AnalyzeFilter(BaseModel):
-    date_from: str | None = None
-    date_to: str | None = None
-    stakes: list[str] = Field(default_factory=list)
+HOST = "127.0.0.1"
+PORT = 8000
 
 
-def _spec_from_body(body: AnalyzeFilter | None) -> FilterSpec:
-    payload: dict[str, Any] | None = body.model_dump() if body else None
-    return FilterSpec.from_payload(payload)
+def _json_bytes(payload: Any, status: int = 200) -> tuple[int, bytes, str]:
+    body = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
+    return status, body, "application/json; charset=utf-8"
 
 
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    return templates.TemplateResponse(request, "index.html", {"title": "Poker Analyzer"})
+def _error(message: str, status: int) -> tuple[int, bytes, str]:
+    return _json_bytes({"detail": message}, status=status)
 
 
-@app.get("/api/summary")
-async def api_summary():
-    return get_service().summary()
+def _read_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
+    length = int(handler.headers.get("Content-Length") or 0)
+    if length <= 0:
+        return {}
+    raw = handler.rfile.read(length)
+    if not raw:
+        return {}
+    data = json.loads(raw.decode("utf-8"))
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError("JSON body must be an object")
+    return data
 
 
-@app.post("/api/reload")
-async def api_reload():
-    """Re-scan local data directory (useful after adding new HH files)."""
-    get_service().reload()
-    return get_service().summary()
+def _spec_from_body(body: dict[str, Any] | None) -> FilterSpec:
+    return FilterSpec.from_payload(body)
 
 
-@app.get("/api/metrics")
-async def api_metrics():
-    """List all registered metric plugins."""
-    return {"metrics": get_service().summary()["metrics"]}
+def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tuple[int, bytes, str]:
+    svc = get_service()
+
+    if path == "/api/summary" and method == "GET":
+        try:
+            return _json_bytes(svc.summary())
+        except FileNotFoundError as exc:
+            from poker.filters import PRESET_STAKES
+
+            return _json_bytes(
+                {
+                    "data_dir": str(svc.data_dir),
+                    "source": None,
+                    "hand_count": 0,
+                    "file_count": 0,
+                    "date_range": {"start": None, "end": None},
+                    "filter": {
+                        "date_from": None,
+                        "date_to": None,
+                        "stakes_presets": [
+                            {"id": s, "label": s.replace("/", "-"), "has_data": False}
+                            for s in PRESET_STAKES
+                        ],
+                        "stakes_in_data": [],
+                    },
+                    "metrics": [],
+                    "error": str(exc),
+                }
+            )
+
+    if path == "/api/reload" and method == "POST":
+        svc.reload()
+        return _json_bytes(svc.summary())
+
+    if path == "/api/data-dir" and method == "GET":
+        return _json_bytes({"data_dir": str(svc.data_dir), "default": str(load_data_dir())})
+
+    if path == "/api/data-dir" and method == "POST":
+        body = _read_json(handler)
+        raw_path = str(body.get("path") or "").strip()
+        if not raw_path:
+            return _error("path is required", HTTPStatus.BAD_REQUEST)
+        target = Path(raw_path).expanduser()
+        if not target.exists() or not target.is_dir():
+            return _error(f"目录不存在: {target}", HTTPStatus.BAD_REQUEST)
+        svc.set_data_dir(target)
+        try:
+            svc.reload()
+            summary = svc.summary()
+        except Exception as exc:  # noqa: BLE001 — surface load errors to UI
+            return _json_bytes(
+                {
+                    "ok": True,
+                    "data_dir": str(svc.data_dir),
+                    "warning": str(exc),
+                    "summary": None,
+                }
+            )
+        return _json_bytes({"ok": True, "data_dir": str(svc.data_dir), "summary": summary})
+
+    if path == "/api/browse-dir" and method == "POST":
+        body = _read_json(handler)
+        initial = body.get("initial") or str(svc.data_dir)
+        try:
+            return _json_bytes(start_browse_job(initial))
+        except Exception as exc:  # noqa: BLE001
+            return _error(f"打开文件夹对话框失败: {exc}", HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    if path == "/api/browse-dir/status" and method == "GET":
+        return _json_bytes(browse_job_status())
+
+    if path == "/api/metrics" and method == "GET":
+        return _json_bytes({"metrics": svc.summary().get("metrics", [])})
+
+    metric_match = re.fullmatch(r"/api/metrics/([^/]+)", path)
+    if metric_match:
+        metric_id = unquote(metric_match.group(1))
+        try:
+            if method == "GET":
+                return _json_bytes(svc.compute_metric(metric_id))
+            if method == "POST":
+                body = _read_json(handler)
+                return _json_bytes(svc.compute_metric(metric_id, _spec_from_body(body)))
+        except KeyError as exc:
+            return _error(str(exc), HTTPStatus.NOT_FOUND)
+        except ValueError as exc:
+            return _error(str(exc), HTTPStatus.BAD_REQUEST)
+
+    if path in ("/api/analyze/profit_curve", "/api/profit/curve"):
+        try:
+            if method == "GET":
+                return _json_bytes(svc.compute_metric("profit_curve"))
+            if method == "POST":
+                body = _read_json(handler)
+                return _json_bytes(svc.compute_metric("profit_curve", _spec_from_body(body)))
+        except KeyError as exc:
+            return _error(str(exc), HTTPStatus.NOT_FOUND)
+        except ValueError as exc:
+            return _error(str(exc), HTTPStatus.BAD_REQUEST)
+
+    analyze_match = re.fullmatch(r"/api/analyze/([^/]+)", path)
+    if analyze_match and method == "POST":
+        metric_id = unquote(analyze_match.group(1))
+        try:
+            body = _read_json(handler)
+            return _json_bytes(svc.compute_metric(metric_id, _spec_from_body(body)))
+        except KeyError as exc:
+            return _error(str(exc), HTTPStatus.NOT_FOUND)
+        except ValueError as exc:
+            return _error(str(exc), HTTPStatus.BAD_REQUEST)
+
+    return _error("Not found", HTTPStatus.NOT_FOUND)
 
 
-@app.get("/api/metrics/{metric_id}")
-async def api_metric_get(metric_id: str):
-    """Compute a metric on the full dataset (no filter)."""
+def _serve_static(rel: str) -> tuple[int, bytes, str] | None:
+    # Prevent path traversal
+    candidate = (STATIC_DIR / rel).resolve()
     try:
-        return get_service().compute_metric(metric_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        candidate.relative_to(STATIC_DIR.resolve())
+    except ValueError:
+        return HTTPStatus.FORBIDDEN, b"Forbidden", "text/plain; charset=utf-8"
+    if not candidate.is_file():
+        return None
+    data = candidate.read_bytes()
+    mime, _ = mimetypes.guess_type(str(candidate))
+    return HTTPStatus.OK, data, mime or "application/octet-stream"
 
 
-@app.post("/api/metrics/{metric_id}")
-async def api_metric_post(metric_id: str, body: AnalyzeFilter | None = None):
-    """Compute a metric on the filtered dataset."""
+def _serve_index() -> tuple[int, bytes, str]:
+    html = TEMPLATE_PATH.read_text(encoding="utf-8")
+    html = html.replace("{{ title }}", "Poker Analyzer")
+    return HTTPStatus.OK, html.encode("utf-8"), "text/html; charset=utf-8"
+
+
+class LocalHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, fmt: str, *args: Any) -> None:
+        sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
+
+    def _send(self, status: int, body: bytes, content_type: str) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+    def _dispatch(self, method: str) -> None:
+        parsed = urlparse(self.path)
+        path = unquote(parsed.path)
+
+        try:
+            if path.startswith("/api/"):
+                status, body, ctype = _handle_api(method, path, self)
+                self._send(status, body, ctype)
+                return
+
+            if path in ("/", "/index.html"):
+                status, body, ctype = _serve_index()
+                self._send(status, body, ctype)
+                return
+
+            if path.startswith("/static/"):
+                rel = path[len("/static/") :]
+                result = _serve_static(rel)
+                if result is None:
+                    self._send(HTTPStatus.NOT_FOUND, b"Not found", "text/plain; charset=utf-8")
+                    return
+                self._send(*result)
+                return
+
+            self._send(HTTPStatus.NOT_FOUND, b"Not found", "text/plain; charset=utf-8")
+        except Exception as exc:  # noqa: BLE001
+            traceback.print_exc()
+            status, body, ctype = _error(str(exc), HTTPStatus.INTERNAL_SERVER_ERROR)
+            try:
+                self._send(status, body, ctype)
+            except OSError:
+                pass
+
+    def do_GET(self) -> None:  # noqa: N802
+        self._dispatch("GET")
+
+    def do_POST(self) -> None:  # noqa: N802
+        self._dispatch("POST")
+
+    def do_HEAD(self) -> None:  # noqa: N802
+        self._dispatch("HEAD")
+
+
+def main() -> int:
+    if not (STATIC_DIR / "js" / "chart.umd.min.js").is_file():
+        print("[ERROR] Missing local chart.js: static/js/chart.umd.min.js", file=sys.stderr)
+        return 1
+
+    # Threaded server: a slow API (or stuck dialog) must not freeze the whole page.
     try:
-        return get_service().compute_metric(metric_id, _spec_from_body(body))
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        server = ThreadingHTTPServer((HOST, PORT), LocalHandler)
+    except OSError as exc:
+        print(f"[ERROR] Cannot bind {HOST}:{PORT} — {exc}", file=sys.stderr)
+        print("Close the old Poker Analyzer window (or free port 8000) and retry.", file=sys.stderr)
+        return 1
+
+    url = f"http://{HOST}:{PORT}"
+    print(f"Poker Analyzer (offline)")
+    print(f"URL: {url}")
+    print(f"Data: {get_service().data_dir}")
+    print("Keep this window open. Press Ctrl+C to stop.")
+
+    threading.Timer(0.8, lambda: webbrowser.open(url)).start()
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopped.")
+    finally:
+        server.server_close()
+    return 0
 
 
-@app.post("/api/analyze/{metric_id}")
-async def api_analyze(metric_id: str, body: AnalyzeFilter | None = None):
-    """Alias for filtered metric compute (local analyze button)."""
-    return await api_metric_post(metric_id, body)
-
-
-@app.get("/api/profit/curve")
-async def api_profit_curve():
-    return get_service().compute_metric("profit_curve")
-
-
-@app.post("/api/profit/curve")
-async def api_profit_curve_filtered(body: AnalyzeFilter | None = None):
-    return get_service().compute_metric("profit_curve", _spec_from_body(body))
+if __name__ == "__main__":
+    raise SystemExit(main())

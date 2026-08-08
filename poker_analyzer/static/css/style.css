@@ -93,12 +93,41 @@ h1 {
   border-color: var(--muted);
 }
 
+.data-bar,
 .filter-bar {
   background: color-mix(in srgb, var(--bg1) 90%, transparent);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px 18px;
   margin-bottom: 18px;
+}
+
+.data-bar-head {
+  margin-bottom: 12px;
+}
+
+.data-path-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.path-input {
+  flex: 1 1 280px;
+  min-width: 200px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: var(--bg2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.path-input:focus {
+  outline: 1px solid var(--accent);
+  border-color: var(--accent);
 }
 
 .filter-head {
