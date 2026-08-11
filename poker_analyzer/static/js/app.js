@@ -83,6 +83,7 @@
       date_from: filter.date_from || "",
       date_to: filter.date_to || "",
       stakes: (filter.stakes_presets || []).map((s) => s.id),
+      game_types: (filter.game_types_presets || []).map((g) => g.id),
     };
 
     const dateFrom = $("#dateFrom");
@@ -93,6 +94,19 @@
     dateTo.max = filter.date_to || "";
     dateFrom.value = state.filterDefaults.date_from;
     dateTo.value = state.filterDefaults.date_to;
+
+    const gameHost = $("#gameTypeGroup");
+    gameHost.innerHTML = "";
+    for (const gt of filter.game_types_presets || []) {
+      const label = document.createElement("label");
+      label.className = "stake-chip" + (gt.has_data ? " has-data" : "");
+      label.innerHTML = `
+        <input type="checkbox" value="${gt.id}" checked />
+        <span>${gt.label}</span>
+        ${gt.has_data ? "" : '<span class="tag">预留</span>'}
+      `;
+      gameHost.appendChild(label);
+    }
 
     const host = $("#stakesGroup");
     host.innerHTML = "";
@@ -115,15 +129,21 @@
     for (const input of document.querySelectorAll("#stakesGroup input[type=checkbox]")) {
       input.checked = true;
     }
+    for (const input of document.querySelectorAll("#gameTypeGroup input[type=checkbox]")) {
+      input.checked = true;
+    }
   }
 
   function readFilter() {
     const stakes = [...document.querySelectorAll("#stakesGroup input[type=checkbox]:checked")]
       .map((el) => el.value);
+    const game_types = [...document.querySelectorAll("#gameTypeGroup input[type=checkbox]:checked")]
+      .map((el) => el.value);
     return {
       date_from: $("#dateFrom").value || null,
       date_to: $("#dateTo").value || null,
       stakes,
+      game_types,
     };
   }
 
@@ -237,6 +257,10 @@
 
   async function analyze() {
     const filter = readFilter();
+    if (!filter.game_types.length) {
+      $("#filterStatus").textContent = "请至少选择一种游戏类型。";
+      return;
+    }
     if (!filter.stakes.length) {
       $("#filterStatus").textContent = "请至少选择一个游戏级别。";
       return;
@@ -262,8 +286,14 @@
 
       state.analyzed = true;
       const stakesLabel = filter.stakes.join(", ") || "无";
+      const gameTypeLabels = {
+        nlh: "普通桌",
+        rush: "极速桌",
+      };
+      const gameLabel =
+        filter.game_types.map((id) => gameTypeLabels[id] || id).join(", ") || "无";
       $("#filterStatus").textContent =
-        `已分析：${filter.date_from || "?"} ~ ${filter.date_to || "?"} · 级别 ${stakesLabel}`;
+        `已分析：${filter.date_from || "?"} ~ ${filter.date_to || "?"} · ${gameLabel} · 级别 ${stakesLabel}`;
     } catch (err) {
       $("#filterStatus").textContent = `分析失败: ${err.message}`;
       console.error(err);

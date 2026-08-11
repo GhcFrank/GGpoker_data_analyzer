@@ -66,7 +66,7 @@ def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tupl
         try:
             return _json_bytes(svc.summary())
         except FileNotFoundError as exc:
-            from poker.filters import PRESET_STAKES
+            from poker.filters import PRESET_GAME_TYPES, PRESET_STAKES
 
             return _json_bytes(
                 {
@@ -83,6 +83,11 @@ def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tupl
                             for s in PRESET_STAKES
                         ],
                         "stakes_in_data": [],
+                        "game_types_presets": [
+                            {"id": gid, "label": label, "has_data": False}
+                            for gid, label in PRESET_GAME_TYPES
+                        ],
+                        "game_types_in_data": [],
                     },
                     "metrics": [],
                     "error": str(exc),

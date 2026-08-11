@@ -17,6 +17,15 @@ PRESET_STAKES: tuple[str, ...] = (
     "0.5/1",
 )
 
+# Game types: regular cash (NLH*) vs Rush & Cash speed tables.
+GAME_TYPE_NLH = "nlh"
+GAME_TYPE_RUSH = "rush"
+PRESET_GAME_TYPES: tuple[tuple[str, str], ...] = (
+    (GAME_TYPE_NLH, "普通桌"),
+    (GAME_TYPE_RUSH, "极速桌"),
+)
+_VALID_GAME_TYPES = {GAME_TYPE_NLH, GAME_TYPE_RUSH}
+
 _STAKES_RE = re.compile(
     r"\$?(?P<sb>\d+(?:\.\d+)?)\s*/\s*\$?(?P<bb>\d+(?:\.\d+)?)",
 )
@@ -41,11 +50,12 @@ def _fmt_level(value: float) -> str:
 
 @dataclass
 class FilterSpec:
-    """Analysis filter. Empty stakes / missing dates means no restriction on that axis."""
+    """Analysis filter. Empty stakes / game_types / missing dates means no restriction on that axis."""
 
     date_from: date | None = None
     date_to: date | None = None
     stakes: list[str] = field(default_factory=list)
+    game_types: list[str] = field(default_factory=list)
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any] | None) -> FilterSpec:
@@ -62,13 +72,26 @@ class FilterSpec:
             if key and key not in stakes:
                 stakes.append(key)
 
-        return cls(date_from=date_from, date_to=date_to, stakes=stakes)
+        raw_game_types = payload.get("game_types") or []
+        game_types: list[str] = []
+        for item in raw_game_types:
+            key = str(item).strip().lower()
+            if key in _VALID_GAME_TYPES and key not in game_types:
+                game_types.append(key)
+
+        return cls(
+            date_from=date_from,
+            date_to=date_to,
+            stakes=stakes,
+            game_types=game_types,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "date_from": self.date_from.isoformat() if self.date_from else None,
             "date_to": self.date_to.isoformat() if self.date_to else None,
             "stakes": list(self.stakes),
+            "game_types": list(self.game_types),
         }
 
 
@@ -91,12 +114,26 @@ def hand_stakes_key(hand: Hand) -> str | None:
     return normalize_stakes(hand.stakes)
 
 
+def hand_game_type(hand: Hand) -> str:
+    """
+    Classify table type from HH metadata.
+
+    Rush & Cash (极速桌): table / filename contains RushAndCash.
+    Otherwise treat as regular cash NLH (普通桌).
+    """
+    haystack = f"{hand.table_name} {hand.source_file}".lower()
+    if "rushandcash" in haystack:
+        return GAME_TYPE_RUSH
+    return GAME_TYPE_NLH
+
+
 def apply_filter(dataset: HandDataset, spec: FilterSpec | None) -> HandDataset:
     """Return a new dataset containing only hands matching the filter."""
     if spec is None:
         return HandDataset(hands=list(dataset.hands), source_label=dataset.source_label)
 
     stakes_set = {normalize_stakes(s) for s in spec.stakes if normalize_stakes(s)}
+    game_type_set = {g for g in spec.game_types if g in _VALID_GAME_TYPES}
     start_dt = datetime.combine(spec.date_from, time.min) if spec.date_from else None
     # Inclusive end date: keep entire calendar day
     end_dt = datetime.combine(spec.date_to, time.max) if spec.date_to else None
@@ -110,6 +147,9 @@ def apply_filter(dataset: HandDataset, spec: FilterSpec | None) -> HandDataset:
         if stakes_set:
             key = hand_stakes_key(hand)
             if key not in stakes_set:
+                continue
+        if game_type_set:
+            if hand_game_type(hand) not in game_type_set:
                 continue
         filtered.append(hand)
 
@@ -129,10 +169,16 @@ def available_stakes(hands: Iterable[Hand]) -> list[str]:
     return ordered
 
 
+def available_game_types(hands: Iterable[Hand]) -> list[str]:
+    found = {hand_game_type(h) for h in hands}
+    return [gid for gid, _ in PRESET_GAME_TYPES if gid in found]
+
+
 def filter_options(dataset: HandDataset) -> dict[str, Any]:
     hands = dataset.sorted_hands()
     present = available_stakes(hands)
     present_set = set(present)
+    present_game_types = set(available_game_types(hands))
     return {
         "date_from": hands[0].datetime.date().isoformat() if hands else None,
         "date_to": hands[-1].datetime.date().isoformat() if hands else None,
@@ -145,4 +191,13 @@ def filter_options(dataset: HandDataset) -> dict[str, Any]:
             for s in PRESET_STAKES
         ],
         "stakes_in_data": present,
+        "game_types_presets": [
+            {
+                "id": gid,
+                "label": label,
+                "has_data": gid in present_game_types,
+            }
+            for gid, label in PRESET_GAME_TYPES
+        ],
+        "game_types_in_data": available_game_types(hands),
     }
