@@ -19,26 +19,55 @@ _browse_lock = threading.Lock()
 _browse_job: dict | None = None
 
 
+def resolve_data_dir(path: Path | str) -> Path:
+    """Resolve a data directory path; relative paths are from poker_analyzer/."""
+    raw = Path(str(path).strip()).expanduser()
+    if not str(raw):
+        return default_data_dir()
+    if raw.is_absolute():
+        return raw.resolve()
+    return (PROJECT_ROOT / raw).resolve()
+
+
+def format_data_dir(path: Path | str) -> str:
+    """Prefer a project-relative path for display and persistence."""
+    resolved = resolve_data_dir(path)
+    try:
+        rel = resolved.relative_to(PROJECT_ROOT)
+        return rel.as_posix()
+    except ValueError:
+        pass
+    try:
+        rel = resolved.relative_to(PROJECT_ROOT.parent)
+        return Path("..", *rel.parts).as_posix()
+    except ValueError:
+        return str(resolved)
+
+
 def default_data_dir() -> Path:
     return DEFAULT_DATA_DIR.resolve()
 
 
 def load_data_dir() -> Path:
     """Return the configured hand-history directory (persisted locally)."""
+    fallback = default_data_dir()
     if SETTINGS_PATH.exists():
         try:
             raw = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
-            path = Path(str(raw.get("data_dir", "")).strip())
-            if str(path):
-                return path.expanduser().resolve()
+            path_str = str(raw.get("data_dir", "")).strip()
+            if path_str:
+                resolved = resolve_data_dir(path_str)
+                if resolved.exists() and resolved.is_dir():
+                    return resolved
+                save_data_dir(fallback)
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
             pass
-    return default_data_dir()
+    return fallback
 
 
 def save_data_dir(path: Path | str) -> Path:
-    resolved = Path(path).expanduser().resolve()
-    payload = {"data_dir": str(resolved)}
+    resolved = resolve_data_dir(path)
+    payload = {"data_dir": format_data_dir(resolved)}
     SETTINGS_PATH.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -47,7 +76,7 @@ def save_data_dir(path: Path | str) -> Path:
 
 
 def _resolve_start(initial: Path | str | None) -> Path:
-    start = Path(initial).expanduser() if initial else load_data_dir()
+    start = resolve_data_dir(initial) if initial else load_data_dir()
     if start.exists():
         return start if start.is_dir() else start.parent
     return Path.home()

@@ -26,6 +26,15 @@
     { id: "OOP", label: "OOP" },
     { id: "OTHER", label: "OTHER" },
   ];
+  const wirFlopTextureOpts = [
+    { id: "high_card", label: "High card", hint: "含 ≥1 张 AKQJ" },
+    { id: "has_ace", label: "有 A", hint: "" },
+    { id: "straight_made", label: "能成顺", hint: "" },
+    { id: "straight_draw", label: "能听顺", hint: "" },
+    { id: "flush_draw", label: "能听花", hint: "两同花及以上" },
+    { id: "monotone", label: "三张同色", hint: "" },
+    { id: "paired", label: "有公对", hint: "" },
+  ];
 
   const state = {
     open: new Set(),
@@ -33,6 +42,7 @@
     analyzed: false,
     summary: null,
     filterDefaults: null,
+    wirRequestId: 0,
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -124,7 +134,7 @@
 
   function setupWhenIRaiseFilters() {
     fillChipGroup($("#wirStreetGroup"), wirStreetOpts, {
-      multi: false,
+      multi: true,
       name: "wir-street",
       checkedIds: new Set(["ALL"]),
     });
@@ -143,20 +153,173 @@
       name: "wir-position",
       checkedIds: new Set(wirPositionOpts.map((o) => o.id)),
     });
+    fillFlopTextureControls($("#wirFlopTextureGroup"));
+    const flopDetailEnable = $("#wirFlopDetailEnable");
+    if (flopDetailEnable) flopDetailEnable.checked = false;
+    syncFlopDetailUI();
 
     const host = $("#whenIRaiseFilters");
-    host.addEventListener("change", () => {
-      if (state.open.has("when_i_raise")) {
-        analyzeWhenIRaise().catch((err) => {
-          $("#filterStatus").textContent = `分析失败: ${err.message}`;
-          console.error(err);
-        });
+    host.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!target) {
+        scheduleWhenIRaiseRefresh();
+        return;
+      }
+
+      if (target.id === "wirFlopDetailEnable") {
+        if (target.checked) {
+          applyFlopDetailStreetDefaults();
+        }
+        syncFlopDetailUI();
+        scheduleWhenIRaiseRefresh();
+        return;
+      }
+
+      if (target.name === "wir-street") {
+        normalizeStreetSelection(target);
+        syncFlopDetailUI();
+        scheduleWhenIRaiseRefresh();
+        return;
+      }
+
+      if (target.classList && target.classList.contains("flop-tex-enable")) {
+        const row = target.closest(".flop-tex-row");
+        if (row) syncFlopTextureRowState(row);
+      }
+
+      scheduleWhenIRaiseRefresh();
+    });
+  }
+
+  function scheduleWhenIRaiseRefresh() {
+    const panel = $("#panel-when_i_raise");
+    if (!state.open.has("when_i_raise") || (panel && panel.hidden)) return;
+    analyzeWhenIRaise().catch((err) => {
+      $("#filterStatus").textContent = `分析失败: ${err.message}`;
+      console.error(err);
+    });
+  }
+
+  function isFlopDetailEnabled() {
+    const el = $("#wirFlopDetailEnable");
+    return !!(el && el.checked);
+  }
+
+  function applyFlopDetailStreetDefaults() {
+    document.querySelectorAll("#wirStreetGroup input").forEach((el) => {
+      if (el.value === "ALL" || el.value === "preflop") {
+        el.checked = false;
+      } else if (el.value === "flop" || el.value === "turn" || el.value === "river") {
+        el.checked = true;
       }
     });
   }
 
+  function normalizeStreetSelection(changed) {
+    const flopDetail = isFlopDetailEnabled();
+    const inputs = [...document.querySelectorAll("#wirStreetGroup input")];
+    if (!inputs.length) return;
+
+    if (flopDetail) {
+      // ALL / preflop are not allowed under flop_detail.
+      inputs.forEach((el) => {
+        if (el.value === "ALL" || el.value === "preflop") el.checked = false;
+      });
+      const postflop = inputs.filter((el) => ["flop", "turn", "river"].includes(el.value));
+      if (!postflop.some((el) => el.checked)) {
+        // Keep at least the street the user just interacted with, else flop.
+        if (changed && ["flop", "turn", "river"].includes(changed.value)) {
+          changed.checked = true;
+        } else {
+          const flop = postflop.find((el) => el.value === "flop");
+          if (flop) flop.checked = true;
+        }
+      }
+      return;
+    }
+
+    if (changed && changed.value === "ALL" && changed.checked) {
+      inputs.forEach((el) => {
+        if (el.value !== "ALL") el.checked = false;
+      });
+      return;
+    }
+
+    if (changed && changed.value !== "ALL" && changed.checked) {
+      const allEl = inputs.find((el) => el.value === "ALL");
+      if (allEl) allEl.checked = false;
+    }
+
+    if (!inputs.some((el) => el.checked)) {
+      const allEl = inputs.find((el) => el.value === "ALL");
+      if (allEl) allEl.checked = true;
+    }
+  }
+
+  function syncFlopDetailUI() {
+    const enabled = isFlopDetailEnabled();
+    const textureRow = $("#wirFlopTextureRow");
+    if (textureRow) textureRow.hidden = !enabled;
+
+    document.querySelectorAll("#wirStreetGroup input").forEach((el) => {
+      const blocked = enabled && (el.value === "ALL" || el.value === "preflop");
+      el.disabled = blocked;
+      const chip = el.closest(".stake-chip");
+      if (chip) chip.classList.toggle("is-disabled", blocked);
+    });
+  }
+
+  function fillFlopTextureControls(host) {
+    host.innerHTML = "";
+    for (const opt of wirFlopTextureOpts) {
+      const row = document.createElement("div");
+      row.className = "flop-tex-row is-off";
+      row.dataset.key = opt.id;
+      const hint = opt.hint ? `<span class="flop-tex-hint">${opt.hint}</span>` : "";
+      row.innerHTML = `
+        <label class="flop-tex-switch" title="启用此条件">
+          <input type="checkbox" class="flop-tex-enable" data-key="${opt.id}" />
+          <span class="flop-tex-slider" aria-hidden="true"></span>
+        </label>
+        <div class="flop-tex-meta">
+          <span class="flop-tex-name">${opt.label}</span>
+          ${hint}
+        </div>
+        <div class="flop-tex-polarity" role="group" aria-label="${opt.label} 是或否">
+          <label class="flop-tex-yn">
+            <input type="radio" name="wir-flop-${opt.id}" value="true" checked disabled />
+            <span>是</span>
+          </label>
+          <label class="flop-tex-yn">
+            <input type="radio" name="wir-flop-${opt.id}" value="false" disabled />
+            <span>否</span>
+          </label>
+        </div>
+      `;
+      host.appendChild(row);
+    }
+  }
+
+  function syncFlopTextureRowState(row) {
+    const enabled = row.querySelector(".flop-tex-enable").checked;
+    row.classList.toggle("is-off", !enabled);
+    row.querySelectorAll('.flop-tex-polarity input[type="radio"]').forEach((el) => {
+      el.disabled = !enabled;
+    });
+  }
+
   function readWhenIRaiseOptions() {
-    const streetEl = document.querySelector("#wirStreetGroup input:checked");
+    const flop_detail = isFlopDetailEnabled();
+    let streets = [...document.querySelectorAll("#wirStreetGroup input:checked")].map(
+      (el) => el.value
+    );
+    if (flop_detail) {
+      streets = streets.filter((s) => s === "flop" || s === "turn" || s === "river");
+      if (!streets.length) streets = ["flop", "turn", "river"];
+    } else if (!streets.length || streets.includes("ALL")) {
+      streets = ["ALL"];
+    }
+
     const player_counts = [...document.querySelectorAll("#wirPlayersGroup input:checked")].map(
       (el) => el.value
     );
@@ -166,12 +329,25 @@
     const positions = [...document.querySelectorAll("#wirPositionGroup input:checked")].map(
       (el) => el.value
     );
-    return {
-      street: streetEl ? streetEl.value : "ALL",
+    const options = {
+      streets,
+      flop_detail,
       player_counts,
       sizes,
       positions,
     };
+    if (flop_detail) {
+      const flop_textures = {};
+      document.querySelectorAll("#wirFlopTextureGroup .flop-tex-row").forEach((row) => {
+        const enable = row.querySelector(".flop-tex-enable");
+        if (!enable || !enable.checked) return;
+        const key = enable.dataset.key;
+        const wantEl = row.querySelector('.flop-tex-polarity input[type="radio"]:checked');
+        flop_textures[key] = wantEl ? wantEl.value === "true" : true;
+      });
+      options.flop_textures = flop_textures;
+    }
+    return options;
   }
 
   function setupFilter(summary) {
@@ -248,7 +424,11 @@
     state.summary = data;
     if (data.data_dir) {
       $("#dataDirInput").value = data.data_dir;
-      $("#dataDirStatus").textContent = `当前: ${data.data_dir}`;
+      const resolved = data.data_dir_resolved || data.data_dir;
+      $("#dataDirStatus").textContent =
+        resolved && resolved !== data.data_dir
+          ? `当前: ${data.data_dir} (${resolved})`
+          : `当前: ${data.data_dir}`;
     }
     if (data.error) {
       $("#summaryText").textContent = `目录无法读取: ${data.error}`;
@@ -353,13 +533,25 @@
   }
 
   async function analyzeWhenIRaise() {
+    const requestId = ++state.wirRequestId;
     const filter = readFilter();
     const options = readWhenIRaiseOptions();
+    const stats = $("#whenIRaiseStats");
+    if (stats) {
+      stats.innerHTML = `
+        <div class="stat">
+          <span class="label">样本数</span>
+          <span class="value" style="color:var(--muted)">计算中…</span>
+        </div>
+      `;
+    }
     const data = await fetchJSON("/api/metrics/when_i_raise", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...filter, options }),
     });
+    // Ignore stale responses when filters change quickly.
+    if (requestId !== state.wirRequestId) return;
     renderWhenIRaise(data);
   }
 

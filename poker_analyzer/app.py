@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
-from poker.config import browse_job_status, load_data_dir, start_browse_job
+from poker.config import browse_job_status, format_data_dir, load_data_dir, resolve_data_dir, start_browse_job
 from poker.filters import FilterSpec
 from poker.service import get_service
 
@@ -79,7 +79,8 @@ def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tupl
 
             return _json_bytes(
                 {
-                    "data_dir": str(svc.data_dir),
+                    "data_dir": format_data_dir(svc.data_dir),
+                    "data_dir_resolved": str(svc.data_dir),
                     "source": None,
                     "hand_count": 0,
                     "file_count": 0,
@@ -108,14 +109,20 @@ def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tupl
         return _json_bytes(svc.summary())
 
     if path == "/api/data-dir" and method == "GET":
-        return _json_bytes({"data_dir": str(svc.data_dir), "default": str(load_data_dir())})
+        return _json_bytes(
+            {
+                "data_dir": format_data_dir(svc.data_dir),
+                "data_dir_resolved": str(svc.data_dir),
+                "default": format_data_dir(load_data_dir()),
+            }
+        )
 
     if path == "/api/data-dir" and method == "POST":
         body = _read_json(handler)
         raw_path = str(body.get("path") or "").strip()
         if not raw_path:
             return _error("path is required", HTTPStatus.BAD_REQUEST)
-        target = Path(raw_path).expanduser()
+        target = resolve_data_dir(raw_path)
         if not target.exists() or not target.is_dir():
             return _error(f"目录不存在: {target}", HTTPStatus.BAD_REQUEST)
         svc.set_data_dir(target)
@@ -126,12 +133,20 @@ def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tupl
             return _json_bytes(
                 {
                     "ok": True,
-                    "data_dir": str(svc.data_dir),
+                    "data_dir": format_data_dir(svc.data_dir),
+                    "data_dir_resolved": str(svc.data_dir),
                     "warning": str(exc),
                     "summary": None,
                 }
             )
-        return _json_bytes({"ok": True, "data_dir": str(svc.data_dir), "summary": summary})
+        return _json_bytes(
+            {
+                "ok": True,
+                "data_dir": format_data_dir(svc.data_dir),
+                "data_dir_resolved": str(svc.data_dir),
+                "summary": summary,
+            }
+        )
 
     if path == "/api/browse-dir" and method == "POST":
         body = _read_json(handler)

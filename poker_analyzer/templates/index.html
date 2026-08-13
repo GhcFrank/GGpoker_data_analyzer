@@ -28,7 +28,7 @@
         </div>
       </div>
       <div class="data-path-row">
-        <input type="text" id="dataDirInput" class="path-input" spellcheck="false" placeholder="例如 F:\poker_data\all\all_hand" />
+        <input type="text" id="dataDirInput" class="path-input" spellcheck="false" placeholder="例如 ../all_hand" />
         <button type="button" class="btn ghost" id="browseDirBtn">浏览…</button>
         <button type="button" class="btn" id="applyDirBtn">加载</button>
       </div>
@@ -113,6 +113,18 @@
           <div class="metric-filter-row">
             <span class="field-label">游戏轮次</span>
             <div class="stakes-group" id="wirStreetGroup"></div>
+          </div>
+          <div class="metric-filter-row">
+            <span class="field-label">Flop Detail</span>
+            <label class="flop-detail-toggle" id="wirFlopDetailToggle">
+              <input type="checkbox" id="wirFlopDetailEnable" />
+              <span class="flop-tex-slider" aria-hidden="true"></span>
+              <span class="flop-detail-toggle-text">按 Flop 牌面细分</span>
+            </label>
+          </div>
+          <div class="metric-filter-row metric-filter-subrow" id="wirFlopTextureRow" hidden>
+            <span class="field-label">牌面条件</span>
+            <div class="flop-texture-list" id="wirFlopTextureGroup"></div>
           </div>
           <div class="metric-filter-row">
             <span class="field-label">游戏人数</span>

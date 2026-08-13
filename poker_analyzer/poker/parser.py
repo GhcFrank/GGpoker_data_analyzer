@@ -57,6 +57,15 @@ _STREET_MARKERS = {
     "*** RIVER ***": "river",
 }
 
+FLOP_LINE_RE = re.compile(r"^\*\*\* FLOP \*\*\* \[(?P<cards>[^\]]+)\]")
+TURN_LINE_RE = re.compile(r"^\*\*\* TURN \*\*\* \[(?P<prev>[^\]]+)\] \[(?P<card>[^\]]+)\]")
+RIVER_LINE_RE = re.compile(r"^\*\*\* RIVER \*\*\* \[(?P<prev>[^\]]+)\] \[(?P<card>[^\]]+)\]")
+BOARD_SUMMARY_RE = re.compile(r"^Board \[(?P<cards>[^\]]+)\]")
+
+
+def _parse_card_tokens(raw: str) -> tuple[str, ...]:
+    return tuple(part.strip() for part in raw.split() if part.strip())
+
 
 def _money(value: str | None) -> float:
     if not value:
@@ -98,6 +107,7 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
     total_collected = 0.0
     street_contrib: dict[str, float] = {}
     went_to_flop = False
+    flop_cards: tuple[str, ...] = ()
     hero_vpip = False
     in_summary = False
     street = "preflop"
@@ -138,6 +148,26 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
             hero_cards = dealt.group("cards")
             continue
 
+        flop_line = FLOP_LINE_RE.match(ln)
+        if flop_line:
+            flop_cards = _parse_card_tokens(flop_line.group("cards"))
+            went_to_flop = True
+            reset_street_contrib()
+            street = "flop"
+            continue
+
+        turn_line = TURN_LINE_RE.match(ln)
+        if turn_line:
+            reset_street_contrib()
+            street = "turn"
+            continue
+
+        river_line = RIVER_LINE_RE.match(ln)
+        if river_line:
+            reset_street_contrib()
+            street = "river"
+            continue
+
         street_hit = False
         for marker, street_name in _STREET_MARKERS.items():
             if ln.startswith(marker):
@@ -161,6 +191,12 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
 
         if in_summary:
             summary_lines.append(ln)
+            board_m = BOARD_SUMMARY_RE.match(ln)
+            if board_m and not flop_cards:
+                parsed = _parse_card_tokens(board_m.group("cards"))
+                if len(parsed) >= 3:
+                    flop_cards = parsed[:3]
+                    went_to_flop = True
             pot_m = SUMMARY_POT_RE.search(ln)
             if pot_m:
                 total_pot = _money(pot_m.group("pot"))
@@ -307,6 +343,7 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
         source_file=source_file,
         raw_summary="\n".join(summary_lines),
         went_to_flop=went_to_flop,
+        flop_cards=flop_cards,
         hero_vpip=hero_vpip,
         button_seat=button_seat,
         seat_names=seat_names,

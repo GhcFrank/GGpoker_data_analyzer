@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from poker.config import load_data_dir, save_data_dir
+from poker.config import format_data_dir, load_data_dir, resolve_data_dir, save_data_dir
 from poker.filters import FilterSpec, apply_filter, filter_options
 from poker.metrics.base import get_metric, list_metrics, load_builtin_metrics
 from poker.models import HandDataset
@@ -15,11 +15,11 @@ class AnalysisService:
 
     def __init__(self, data_dir: Path | str | None = None) -> None:
         load_builtin_metrics()
-        self.data_dir = Path(data_dir).expanduser().resolve() if data_dir else load_data_dir()
+        self.data_dir = resolve_data_dir(data_dir) if data_dir else load_data_dir()
         self._dataset: HandDataset | None = None
 
     def set_data_dir(self, data_dir: Path | str, *, persist: bool = True) -> Path:
-        path = Path(data_dir).expanduser().resolve()
+        path = resolve_data_dir(data_dir)
         if persist:
             save_data_dir(path)
         self.data_dir = path
@@ -41,7 +41,8 @@ class AnalysisService:
     def summary(self) -> dict[str, Any]:
         ds = self.dataset
         return {
-            "data_dir": str(self.data_dir),
+            "data_dir": format_data_dir(self.data_dir),
+            "data_dir_resolved": str(self.data_dir),
             "source": ds.source_label,
             "hand_count": len(ds.hands),
             "file_count": len({h.source_file for h in ds.hands}),

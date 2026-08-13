@@ -228,6 +228,67 @@ h1 {
   color: var(--text);
 }
 
+.stake-chip.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.flop-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.flop-detail-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.flop-detail-toggle .flop-tex-slider {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  inset: auto;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: #3a4a5c;
+  transition: background 0.15s ease;
+}
+
+.flop-detail-toggle .flop-tex-slider::before {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  left: 3px;
+  top: 3px;
+  border-radius: 50%;
+  background: #e8eef4;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease;
+}
+
+.flop-detail-toggle input:checked + .flop-tex-slider {
+  background: var(--accent);
+}
+
+.flop-detail-toggle input:checked + .flop-tex-slider::before {
+  transform: translateX(16px);
+  background: #06140f;
+}
+
+.flop-detail-toggle-text {
+  color: var(--text);
+}
+
 .stake-chip .tag {
   font-size: 0.7rem;
   color: var(--muted);
@@ -384,6 +445,165 @@ h1 {
   min-width: 4.5rem;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.metric-filter-subrow {
+  margin-left: 0.75rem;
+  padding-left: 12px;
+  border-left: 2px solid var(--line);
+  align-items: flex-start;
+}
+
+.metric-filter-subrow .field-label {
+  min-width: 4.75rem;
+  padding-top: 8px;
+}
+
+.flop-texture-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: min(100%, 420px);
+}
+
+.flop-tex-row {
+  display: grid;
+  grid-template-columns: auto minmax(7.5rem, 1fr) auto;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg2);
+  color: var(--text);
+  transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+
+.flop-tex-row.is-off {
+  opacity: 0.72;
+}
+
+.flop-tex-row:not(.is-off) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--bg2) 82%, var(--accent));
+}
+
+.flop-tex-switch {
+  position: relative;
+  display: inline-flex;
+  width: 36px;
+  height: 20px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.flop-tex-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.flop-tex-slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #3a4a5c;
+  transition: background 0.15s ease;
+}
+
+.flop-tex-slider::before {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  left: 3px;
+  top: 3px;
+  border-radius: 50%;
+  background: #e8eef4;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease;
+}
+
+.flop-tex-switch input:checked + .flop-tex-slider {
+  background: var(--accent);
+}
+
+.flop-tex-switch input:checked + .flop-tex-slider::before {
+  transform: translateX(16px);
+  background: #06140f;
+}
+
+.flop-tex-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.flop-tex-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.flop-tex-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.flop-tex-polarity {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg1);
+}
+
+.flop-tex-yn {
+  display: inline-flex;
+  cursor: pointer;
+  margin: 0;
+}
+
+.flop-tex-yn input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.flop-tex-yn span {
+  min-width: 2.2rem;
+  padding: 4px 10px;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text);
+  background: transparent;
+  user-select: none;
+}
+
+.flop-tex-yn input:checked + span {
+  background: var(--accent);
+  color: #06140f;
+  font-weight: 700;
+}
+
+.flop-tex-row.is-off .flop-tex-yn {
+  cursor: default;
+}
+
+.flop-tex-row.is-off .flop-tex-yn span {
+  background: transparent;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.flop-tex-row.is-off .flop-tex-yn input:checked + span {
+  background: #314255;
+  color: var(--text);
+  font-weight: 600;
 }
 
 .chart-wrap {

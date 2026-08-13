@@ -41,6 +41,7 @@ class Hand:
     source_file: str
     raw_summary: str = ""
     went_to_flop: bool = False
+    flop_cards: tuple[str, ...] = ()
     hero_vpip: bool = False
     button_seat: int | None = None
     seat_names: dict[int, str] = field(default_factory=dict)

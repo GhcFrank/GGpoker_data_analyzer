@@ -3,15 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from poker.board_texture import FLOP_FILTER_KEYS, flop_texture_matches
 from poker.metrics.base import Metric, register
 from poker.models import Action, Hand, HandDataset
 
 STREETS = ("preflop", "flop", "turn", "river")
+POSTFLOP_STREETS = frozenset({"flop", "turn", "river"})
 SIZE_TARGETS: dict[str, float] = {"33": 33.0, "66": 66.0, "110": 110.0}
 SIZE_TOLERANCE_PP = 10.0  # absolute percentage points
 PLAYER_COUNT_ALL = {"2", "3+"}
 POSITION_ALL = {"IP", "OOP", "OTHER"}
 SIZE_ALL = set(SIZE_TARGETS)
+FLOP_FILTER_ALL = set(FLOP_FILTER_KEYS)
+STREET_ALL = set(STREETS)
 
 
 @dataclass
@@ -23,6 +27,7 @@ class RaiseSpot:
     all_fold: bool
     has_call: bool
     has_reraise: bool
+    flop_cards: tuple[str, ...] = ()
 
 
 def _seat_order_clockwise(seats: Iterable[int], start_seat: int) -> list[int]:
@@ -174,6 +179,7 @@ def extract_hero_raise_spots(hand: Hand) -> list[RaiseSpot]:
                 all_fold=all_fold,
                 has_call=has_call,
                 has_reraise=has_reraise,
+                flop_cards=hand.flop_cards if act.street in POSTFLOP_STREETS else (),
             )
         )
     return spots
@@ -191,6 +197,73 @@ def _axis_selected(selected: list[str], universe: set[str]) -> set[str]:
     return {s for s in selected if s in universe}
 
 
+def _truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def _selected_streets(options: dict[str, Any]) -> set[str] | None:
+    """
+    Return allowed streets, or None meaning no street restriction.
+
+    Accepts:
+      streets: ["flop", "turn"]
+      street: "flop" | "ALL"   (legacy single value)
+    """
+    if "streets" in options:
+        raw = _as_str_list(options.get("streets"))
+        chosen = {s.strip().lower() for s in raw if s.strip()}
+        if not chosen or "all" in chosen:
+            return None
+        return {s for s in chosen if s in STREET_ALL}
+
+    street_opt = str(options.get("street") or "ALL").strip().lower()
+    if not street_opt or street_opt == "all":
+        return None
+    if street_opt in STREET_ALL:
+        return {street_opt}
+    return set()
+
+
+def _parse_flop_texture_constraints(value: Any) -> dict[str, bool]:
+    """
+    Parse enabled flop texture filters.
+
+    Accepts:
+      {"high_card": true, "paired": false}
+      [{"key": "high_card", "want": true}, ...]
+    Only known keys are kept. Empty → no texture filter.
+    """
+    if not value:
+        return {}
+    out: dict[str, bool] = {}
+    if isinstance(value, dict):
+        for key, want in value.items():
+            k = str(key)
+            if k in FLOP_FILTER_ALL:
+                out[k] = bool(want)
+        return out
+    if isinstance(value, list):
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            k = str(item.get("key") or item.get("id") or "")
+            if k not in FLOP_FILTER_ALL:
+                continue
+            if "want" in item:
+                out[k] = bool(item["want"])
+            elif "value" in item:
+                out[k] = bool(item["value"])
+            else:
+                out[k] = True
+    return out
+
+
 def _size_matches(size_pct: float, selected: list[str]) -> bool:
     chosen = _axis_selected(selected, SIZE_ALL)
     if not chosen:
@@ -205,9 +278,19 @@ def _size_matches(size_pct: float, selected: list[str]) -> bool:
 
 
 def _spot_matches(spot: RaiseSpot, options: dict[str, Any]) -> bool:
-    street_opt = str(options.get("street") or "ALL").strip().lower()
-    if street_opt and street_opt != "all":
-        if spot.street != street_opt:
+    flop_detail = _truthy(options.get("flop_detail"))
+    allowed_streets = _selected_streets(options)
+
+    if flop_detail:
+        # Flop detail only applies to postflop raise spots.
+        if spot.street not in POSTFLOP_STREETS:
+            return False
+        if allowed_streets is not None:
+            postflop_allowed = allowed_streets & POSTFLOP_STREETS
+            if not postflop_allowed or spot.street not in postflop_allowed:
+                return False
+    elif allowed_streets is not None:
+        if spot.street not in allowed_streets:
             return False
 
     player_counts = _as_str_list(options.get("player_counts"))
@@ -236,6 +319,14 @@ def _spot_matches(spot: RaiseSpot, options: dict[str, Any]) -> bool:
             return False
         if chosen_pos != POSITION_ALL and spot.position not in chosen_pos:
             return False
+
+    if flop_detail:
+        constraints = _parse_flop_texture_constraints(options.get("flop_textures"))
+        if constraints:
+            if len(spot.flop_cards) != 3:
+                return False
+            if not flop_texture_matches(spot.flop_cards, constraints):
+                return False
 
     return True
 
@@ -270,6 +361,8 @@ class WhenIRaiseMetric(Metric):
                 return None
             return round(100.0 * count / n, 2)
 
+        streets = _selected_streets(opts)
+        flop_detail = _truthy(opts.get("flop_detail"))
         return {
             "metric_id": self.id,
             "name": self.name,
@@ -279,9 +372,11 @@ class WhenIRaiseMetric(Metric):
             "call": {"count": call_n, "pct": pct(call_n)},
             "reraise": {"count": reraise_n, "pct": pct(reraise_n)},
             "options": {
-                "street": str(opts.get("street") or "ALL"),
+                "streets": sorted(streets) if streets is not None else ["ALL"],
+                "flop_detail": flop_detail,
                 "player_counts": _as_str_list(opts.get("player_counts")) or sorted(PLAYER_COUNT_ALL),
                 "sizes": _as_str_list(opts.get("sizes")) or sorted(SIZE_ALL, key=lambda x: float(x)),
                 "positions": _as_str_list(opts.get("positions")) or sorted(POSITION_ALL),
+                "flop_textures": _parse_flop_texture_constraints(opts.get("flop_textures")) if flop_detail else {},
             },
         }
