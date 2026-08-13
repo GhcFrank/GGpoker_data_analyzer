@@ -35,6 +35,11 @@
     { id: "monotone", label: "三张同色", hint: "" },
     { id: "paired", label: "有公对", hint: "" },
   ];
+  const wirTurnFlopLineOpts = [
+    { id: "flop_checkcheck", label: "Check-Check", hint: "Flop 所有人 check 到 Turn" },
+    { id: "flop_call", label: "Flop Call", hint: "Hero 最后 call 进入 Turn" },
+    { id: "flop_raise", label: "Flop Raise", hint: "Hero 最后 raise/bet 被 call 进入 Turn" },
+  ];
 
   const state = {
     open: new Set(),
@@ -154,9 +159,12 @@
       checkedIds: new Set(wirPositionOpts.map((o) => o.id)),
     });
     fillFlopTextureControls($("#wirFlopTextureGroup"));
+    fillTurnFlopLineControls($("#wirTurnFlopLineGroup"));
     const flopDetailEnable = $("#wirFlopDetailEnable");
     if (flopDetailEnable) flopDetailEnable.checked = false;
-    syncFlopDetailUI();
+    const turnDetailEnable = $("#wirTurnDetailEnable");
+    if (turnDetailEnable) turnDetailEnable.checked = false;
+    syncDetailModeUI();
 
     const host = $("#whenIRaiseFilters");
     host.addEventListener("change", (event) => {
@@ -167,17 +175,26 @@
       }
 
       if (target.id === "wirFlopDetailEnable") {
-        if (target.checked) {
+        if (target.checked && !isTurnDetailEnabled()) {
           applyFlopDetailStreetDefaults();
         }
-        syncFlopDetailUI();
+        syncDetailModeUI();
+        scheduleWhenIRaiseRefresh();
+        return;
+      }
+
+      if (target.id === "wirTurnDetailEnable") {
+        if (target.checked) {
+          applyTurnDetailStreetDefaults();
+        }
+        syncDetailModeUI();
         scheduleWhenIRaiseRefresh();
         return;
       }
 
       if (target.name === "wir-street") {
         normalizeStreetSelection(target);
-        syncFlopDetailUI();
+        syncDetailModeUI();
         scheduleWhenIRaiseRefresh();
         return;
       }
@@ -205,6 +222,11 @@
     return !!(el && el.checked);
   }
 
+  function isTurnDetailEnabled() {
+    const el = $("#wirTurnDetailEnable");
+    return !!(el && el.checked);
+  }
+
   function applyFlopDetailStreetDefaults() {
     document.querySelectorAll("#wirStreetGroup input").forEach((el) => {
       if (el.value === "ALL" || el.value === "preflop") {
@@ -215,10 +237,39 @@
     });
   }
 
+  function applyTurnDetailStreetDefaults() {
+    document.querySelectorAll("#wirStreetGroup input").forEach((el) => {
+      if (el.value === "ALL" || el.value === "preflop" || el.value === "flop") {
+        el.checked = false;
+      } else if (el.value === "turn" || el.value === "river") {
+        el.checked = true;
+      }
+    });
+  }
+
   function normalizeStreetSelection(changed) {
     const flopDetail = isFlopDetailEnabled();
+    const turnDetail = isTurnDetailEnabled();
     const inputs = [...document.querySelectorAll("#wirStreetGroup input")];
     if (!inputs.length) return;
+
+    if (turnDetail) {
+      inputs.forEach((el) => {
+        if (el.value === "ALL" || el.value === "preflop" || el.value === "flop") {
+          el.checked = false;
+        }
+      });
+      const turnStreets = inputs.filter((el) => ["turn", "river"].includes(el.value));
+      if (!turnStreets.some((el) => el.checked)) {
+        if (changed && ["turn", "river"].includes(changed.value)) {
+          changed.checked = true;
+        } else {
+          const turn = turnStreets.find((el) => el.value === "turn");
+          if (turn) turn.checked = true;
+        }
+      }
+      return;
+    }
 
     if (flopDetail) {
       // ALL / preflop are not allowed under flop_detail.
@@ -256,17 +307,40 @@
     }
   }
 
-  function syncFlopDetailUI() {
-    const enabled = isFlopDetailEnabled();
+  function syncDetailModeUI() {
+    const flopEnabled = isFlopDetailEnabled();
+    const turnEnabled = isTurnDetailEnabled();
     const textureRow = $("#wirFlopTextureRow");
-    if (textureRow) textureRow.hidden = !enabled;
+    if (textureRow) textureRow.hidden = !flopEnabled;
+
+    const turnLineRow = $("#wirTurnFlopLineRow");
+    if (turnLineRow) turnLineRow.hidden = !turnEnabled;
 
     document.querySelectorAll("#wirStreetGroup input").forEach((el) => {
-      const blocked = enabled && (el.value === "ALL" || el.value === "preflop");
+      let blocked = false;
+      if (turnEnabled) {
+        blocked = el.value === "ALL" || el.value === "preflop" || el.value === "flop";
+      } else if (flopEnabled) {
+        blocked = el.value === "ALL" || el.value === "preflop";
+      }
       el.disabled = blocked;
       const chip = el.closest(".stake-chip");
       if (chip) chip.classList.toggle("is-disabled", blocked);
     });
+  }
+
+  function fillTurnFlopLineControls(host) {
+    host.innerHTML = "";
+    for (const opt of wirTurnFlopLineOpts) {
+      const label = document.createElement("label");
+      label.className = "stake-chip has-data";
+      const hint = opt.hint ? ` title="${opt.hint}"` : "";
+      label.innerHTML = `
+        <input type="checkbox" name="wir-turn-flop-line" value="${opt.id}"${hint} />
+        <span>${opt.label}</span>
+      `;
+      host.appendChild(label);
+    }
   }
 
   function fillFlopTextureControls(host) {
@@ -310,10 +384,14 @@
 
   function readWhenIRaiseOptions() {
     const flop_detail = isFlopDetailEnabled();
+    const turn_detail = isTurnDetailEnabled();
     let streets = [...document.querySelectorAll("#wirStreetGroup input:checked")].map(
       (el) => el.value
     );
-    if (flop_detail) {
+    if (turn_detail) {
+      streets = streets.filter((s) => s === "turn" || s === "river");
+      if (!streets.length) streets = ["turn", "river"];
+    } else if (flop_detail) {
       streets = streets.filter((s) => s === "flop" || s === "turn" || s === "river");
       if (!streets.length) streets = ["flop", "turn", "river"];
     } else if (!streets.length || streets.includes("ALL")) {
@@ -332,11 +410,12 @@
     const options = {
       streets,
       flop_detail,
+      turn_detail,
       player_counts,
       sizes,
       positions,
     };
-    if (flop_detail) {
+    if (flop_detail || turn_detail) {
       const flop_textures = {};
       document.querySelectorAll("#wirFlopTextureGroup .flop-tex-row").forEach((row) => {
         const enable = row.querySelector(".flop-tex-enable");
@@ -345,7 +424,17 @@
         const wantEl = row.querySelector('.flop-tex-polarity input[type="radio"]:checked');
         flop_textures[key] = wantEl ? wantEl.value === "true" : true;
       });
-      options.flop_textures = flop_textures;
+      if (Object.keys(flop_textures).length) {
+        options.flop_textures = flop_textures;
+      }
+    }
+    if (turn_detail) {
+      const turn_flop_lines = [
+        ...document.querySelectorAll("#wirTurnFlopLineGroup input:checked"),
+      ].map((el) => el.value);
+      if (turn_flop_lines.length) {
+        options.turn_flop_lines = turn_flop_lines;
+      }
     }
     return options;
   }

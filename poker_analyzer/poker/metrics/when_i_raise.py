@@ -9,6 +9,8 @@ from poker.models import Action, Hand, HandDataset
 
 STREETS = ("preflop", "flop", "turn", "river")
 POSTFLOP_STREETS = frozenset({"flop", "turn", "river"})
+TURN_DETAIL_STREETS = frozenset({"turn", "river"})
+TURN_DETAIL_FLOP_LINES = frozenset({"flop_checkcheck", "flop_call", "flop_raise"})
 SIZE_TARGETS: dict[str, float] = {"33": 33.0, "66": 66.0, "110": 110.0}
 SIZE_TOLERANCE_PP = 10.0  # absolute percentage points
 PLAYER_COUNT_ALL = {"2", "3+"}
@@ -230,6 +232,75 @@ def _selected_streets(options: dict[str, Any]) -> set[str] | None:
     return set()
 
 
+def _hand_reached_turn(hand: Hand) -> bool:
+    return any(act.street == "turn" for act in hand.actions)
+
+
+def _flop_betting_actions(hand: Hand) -> list[Action]:
+    return [
+        act
+        for act in hand.actions
+        if act.street == "flop" and act.action in ("fold", "check", "call", "bet", "raise")
+    ]
+
+
+def classify_flop_to_turn(hand: Hand) -> str | None:
+    """
+    Classify how the hand entered the turn based on flop action.
+
+    Returns one of flop_checkcheck | flop_call | flop_raise, or None if the
+    hand did not reach the turn.
+    """
+    if not _hand_reached_turn(hand):
+        return None
+
+    flop_acts = _flop_betting_actions(hand)
+    if not any(act.action in ("bet", "raise") for act in flop_acts):
+        return "flop_checkcheck"
+
+    last_agg_index: int | None = None
+    for idx, act in enumerate(hand.actions):
+        if act.street == "flop" and act.action in ("bet", "raise"):
+            last_agg_index = idx
+
+    if last_agg_index is None:
+        return None
+
+    last_agg = hand.actions[last_agg_index]
+    if last_agg.is_hero:
+        return "flop_raise"
+
+    hero_last_call_index: int | None = None
+    for idx, act in enumerate(hand.actions):
+        if act.street == "flop" and act.is_hero and act.action == "call":
+            hero_last_call_index = idx
+
+    if hero_last_call_index is None:
+        return None
+
+    for act in hand.actions[hero_last_call_index + 1 :]:
+        if act.street != "flop":
+            break
+        if act.action in ("bet", "raise", "call"):
+            return None
+
+    return "flop_call"
+
+
+def _parse_turn_detail_lines(value: Any) -> set[str]:
+    if not value:
+        return set()
+    if isinstance(value, str):
+        key = value.strip()
+        return {key} if key in TURN_DETAIL_FLOP_LINES else set()
+    out: set[str] = set()
+    for item in value:
+        key = str(item).strip()
+        if key in TURN_DETAIL_FLOP_LINES:
+            out.add(key)
+    return out
+
+
 def _parse_flop_texture_constraints(value: Any) -> dict[str, bool]:
     """
     Parse enabled flop texture filters.
@@ -277,11 +348,28 @@ def _size_matches(size_pct: float, selected: list[str]) -> bool:
     return False
 
 
-def _spot_matches(spot: RaiseSpot, options: dict[str, Any]) -> bool:
+def _spot_matches(
+    spot: RaiseSpot,
+    options: dict[str, Any],
+    *,
+    flop_line: str | None = None,
+) -> bool:
     flop_detail = _truthy(options.get("flop_detail"))
+    turn_detail = _truthy(options.get("turn_detail"))
     allowed_streets = _selected_streets(options)
 
-    if flop_detail:
+    if turn_detail:
+        if spot.street not in TURN_DETAIL_STREETS:
+            return False
+        if allowed_streets is not None:
+            turn_allowed = allowed_streets & TURN_DETAIL_STREETS
+            if not turn_allowed or spot.street not in turn_allowed:
+                return False
+        selected_lines = _parse_turn_detail_lines(options.get("turn_flop_lines"))
+        if selected_lines:
+            if flop_line is None or flop_line not in selected_lines:
+                return False
+    elif flop_detail:
         # Flop detail only applies to postflop raise spots.
         if spot.street not in POSTFLOP_STREETS:
             return False
@@ -320,7 +408,7 @@ def _spot_matches(spot: RaiseSpot, options: dict[str, Any]) -> bool:
         if chosen_pos != POSITION_ALL and spot.position not in chosen_pos:
             return False
 
-    if flop_detail:
+    if flop_detail or turn_detail:
         constraints = _parse_flop_texture_constraints(options.get("flop_textures"))
         if constraints:
             if len(spot.flop_cards) != 3:
@@ -345,8 +433,15 @@ class WhenIRaiseMetric(Metric):
         spots: list[RaiseSpot] = []
         hands_with_spot = 0
 
+        turn_detail = _truthy(opts.get("turn_detail"))
+
         for hand in dataset.sorted_hands():
-            hand_spots = [s for s in extract_hero_raise_spots(hand) if _spot_matches(s, opts)]
+            flop_line = classify_flop_to_turn(hand) if turn_detail else None
+            hand_spots = [
+                s
+                for s in extract_hero_raise_spots(hand)
+                if _spot_matches(s, opts, flop_line=flop_line)
+            ]
             if hand_spots:
                 hands_with_spot += 1
             spots.extend(hand_spots)
@@ -363,6 +458,7 @@ class WhenIRaiseMetric(Metric):
 
         streets = _selected_streets(opts)
         flop_detail = _truthy(opts.get("flop_detail"))
+        turn_detail = _truthy(opts.get("turn_detail"))
         return {
             "metric_id": self.id,
             "name": self.name,
@@ -374,9 +470,15 @@ class WhenIRaiseMetric(Metric):
             "options": {
                 "streets": sorted(streets) if streets is not None else ["ALL"],
                 "flop_detail": flop_detail,
+                "turn_detail": turn_detail,
+                "turn_flop_lines": sorted(_parse_turn_detail_lines(opts.get("turn_flop_lines")))
+                if turn_detail
+                else [],
                 "player_counts": _as_str_list(opts.get("player_counts")) or sorted(PLAYER_COUNT_ALL),
                 "sizes": _as_str_list(opts.get("sizes")) or sorted(SIZE_ALL, key=lambda x: float(x)),
                 "positions": _as_str_list(opts.get("positions")) or sorted(POSITION_ALL),
-                "flop_textures": _parse_flop_texture_constraints(opts.get("flop_textures")) if flop_detail else {},
+                "flop_textures": _parse_flop_texture_constraints(opts.get("flop_textures"))
+                if flop_detail or turn_detail
+                else {},
             },
         }
