@@ -95,14 +95,40 @@
         <p class="empty-hint" id="profitEmpty" hidden>当前筛选条件下没有手牌，请调整筛选器后重新分析。</p>
       </section>
 
-      <section class="analysis-panel placeholder" id="panel-reserved_vpip" data-metric="reserved_vpip" hidden>
+      <section
+        class="analysis-panel"
+        id="panel-when_i_raise"
+        data-metric="when_i_raise"
+        hidden
+      >
         <div class="panel-head">
           <div>
-            <h2>入池率 (VPIP)</h2>
-            <p class="panel-desc">预留面板。接入 metric 插件后即可显示。</p>
+            <h2>When I Raise</h2>
+            <p class="panel-desc">统计 Hero 下注/加注后，对手全弃牌、跟注、再加注的频率。默认 General（条件全选）等于不限制该轴。</p>
+          </div>
+          <div class="stat-row" id="whenIRaiseStats"></div>
+        </div>
+
+        <div class="metric-filter" id="whenIRaiseFilters">
+          <div class="metric-filter-row">
+            <span class="field-label">游戏轮次</span>
+            <div class="stakes-group" id="wirStreetGroup"></div>
+          </div>
+          <div class="metric-filter-row">
+            <span class="field-label">游戏人数</span>
+            <div class="stakes-group" id="wirPlayersGroup"></div>
+          </div>
+          <div class="metric-filter-row">
+            <span class="field-label">下注 Size</span>
+            <div class="stakes-group" id="wirSizeGroup"></div>
+          </div>
+          <div class="metric-filter-row">
+            <span class="field-label">我的位置</span>
+            <div class="stakes-group" id="wirPositionGroup"></div>
           </div>
         </div>
-        <div class="placeholder-body">后续指标位置</div>
+
+        <p class="empty-hint" id="whenIRaiseEmpty" hidden>当前条件下没有 Hero 下注/加注样本。</p>
       </section>
 
       <section class="analysis-panel placeholder" id="panel-reserved_extra" data-metric="reserved_extra" hidden>

@@ -15,7 +15,8 @@ class ProfitCurveMetric(Metric):
     description = "按手数累计的费用前 / 抽水后盈利"
     chart_type = "line"
 
-    def compute(self, dataset: HandDataset) -> dict[str, Any]:
+    def compute(self, dataset: HandDataset, options: dict[str, Any] | None = None) -> dict[str, Any]:
+        _ = options
         hands = dataset.sorted_hands()
         n = len(hands)
 

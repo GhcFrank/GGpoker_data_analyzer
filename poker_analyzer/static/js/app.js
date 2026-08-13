@@ -1,8 +1,30 @@
 (() => {
   const panelDefs = [
     { id: "profit_curve", label: "盈利曲线", live: true },
-    { id: "reserved_vpip", label: "入池率 (预留)", live: false },
+    { id: "when_i_raise", label: "When I Raise", live: true },
     { id: "reserved_extra", label: "更多分析 (预留)", live: false },
+  ];
+
+  const wirStreetOpts = [
+    { id: "ALL", label: "ALL" },
+    { id: "preflop", label: "Preflop" },
+    { id: "flop", label: "Flop" },
+    { id: "turn", label: "Turn" },
+    { id: "river", label: "River" },
+  ];
+  const wirPlayerOpts = [
+    { id: "2", label: "2人" },
+    { id: "3+", label: "2人以上" },
+  ];
+  const wirSizeOpts = [
+    { id: "33", label: "33% pot" },
+    { id: "66", label: "66% pot" },
+    { id: "110", label: "110% pot" },
+  ];
+  const wirPositionOpts = [
+    { id: "IP", label: "IP" },
+    { id: "OOP", label: "OOP" },
+    { id: "OTHER", label: "OTHER" },
   ];
 
   const state = {
@@ -24,6 +46,11 @@
   function fmtMoney(n) {
     const sign = n > 0 ? "+" : "";
     return `${sign}${Number(n).toFixed(2)}`;
+  }
+
+  function fmtPct(n) {
+    if (n === null || n === undefined) return "—";
+    return `${Number(n).toFixed(2)}%`;
   }
 
   async function fetchJSON(url, options) {
@@ -67,6 +94,9 @@
     }
     syncPanels();
     renderToggles();
+    if (state.open.has(id) && state.analyzed) {
+      analyze();
+    }
   }
 
   function syncPanels() {
@@ -75,6 +105,73 @@
       if (!panel) continue;
       panel.hidden = !state.open.has(def.id);
     }
+  }
+
+  function fillChipGroup(host, opts, { multi, name, checkedIds }) {
+    host.innerHTML = "";
+    for (const opt of opts) {
+      const label = document.createElement("label");
+      label.className = "stake-chip has-data";
+      const checked = checkedIds.has(opt.id) ? "checked" : "";
+      const type = multi ? "checkbox" : "radio";
+      label.innerHTML = `
+        <input type="${type}" name="${name}" value="${opt.id}" ${checked} />
+        <span>${opt.label}</span>
+      `;
+      host.appendChild(label);
+    }
+  }
+
+  function setupWhenIRaiseFilters() {
+    fillChipGroup($("#wirStreetGroup"), wirStreetOpts, {
+      multi: false,
+      name: "wir-street",
+      checkedIds: new Set(["ALL"]),
+    });
+    fillChipGroup($("#wirPlayersGroup"), wirPlayerOpts, {
+      multi: true,
+      name: "wir-players",
+      checkedIds: new Set(wirPlayerOpts.map((o) => o.id)),
+    });
+    fillChipGroup($("#wirSizeGroup"), wirSizeOpts, {
+      multi: true,
+      name: "wir-size",
+      checkedIds: new Set(wirSizeOpts.map((o) => o.id)),
+    });
+    fillChipGroup($("#wirPositionGroup"), wirPositionOpts, {
+      multi: true,
+      name: "wir-position",
+      checkedIds: new Set(wirPositionOpts.map((o) => o.id)),
+    });
+
+    const host = $("#whenIRaiseFilters");
+    host.addEventListener("change", () => {
+      if (state.open.has("when_i_raise")) {
+        analyzeWhenIRaise().catch((err) => {
+          $("#filterStatus").textContent = `分析失败: ${err.message}`;
+          console.error(err);
+        });
+      }
+    });
+  }
+
+  function readWhenIRaiseOptions() {
+    const streetEl = document.querySelector("#wirStreetGroup input:checked");
+    const player_counts = [...document.querySelectorAll("#wirPlayersGroup input:checked")].map(
+      (el) => el.value
+    );
+    const sizes = [...document.querySelectorAll("#wirSizeGroup input:checked")].map(
+      (el) => el.value
+    );
+    const positions = [...document.querySelectorAll("#wirPositionGroup input:checked")].map(
+      (el) => el.value
+    );
+    return {
+      street: streetEl ? streetEl.value : "ALL",
+      player_counts,
+      sizes,
+      positions,
+    };
   }
 
   function setupFilter(summary) {
@@ -255,6 +352,17 @@
     }
   }
 
+  async function analyzeWhenIRaise() {
+    const filter = readFilter();
+    const options = readWhenIRaiseOptions();
+    const data = await fetchJSON("/api/metrics/when_i_raise", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...filter, options }),
+    });
+    renderWhenIRaise(data);
+  }
+
   async function analyze() {
     const filter = readFilter();
     if (!filter.game_types.length) {
@@ -281,6 +389,8 @@
             body: JSON.stringify(filter),
           });
           renderProfit(data);
+        } else if (def.id === "when_i_raise") {
+          await analyzeWhenIRaise();
         }
       }
 
@@ -301,6 +411,49 @@
       btn.disabled = false;
       btn.textContent = "分析";
     }
+  }
+
+  function renderWhenIRaise(data) {
+    const empty = $("#whenIRaiseEmpty");
+    const stats = $("#whenIRaiseStats");
+
+    if (!data.spot_count) {
+      empty.hidden = false;
+      stats.innerHTML = `
+        <div class="stat">
+          <span class="label">样本数</span>
+          <span class="value">0</span>
+        </div>
+      `;
+      return;
+    }
+
+    empty.hidden = true;
+    const allFold = data.all_fold || {};
+    const call = data.call || {};
+    const reraise = data.reraise || {};
+    stats.innerHTML = `
+      <div class="stat">
+        <span class="label">样本数</span>
+        <span class="value">${data.spot_count}</span>
+      </div>
+      <div class="stat">
+        <span class="label">涉及手数</span>
+        <span class="value">${data.hand_count}</span>
+      </div>
+      <div class="stat">
+        <span class="label">All Fold</span>
+        <span class="value">${fmtPct(allFold.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${allFold.count || 0})</span></span>
+      </div>
+      <div class="stat">
+        <span class="label">Call</span>
+        <span class="value">${fmtPct(call.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${call.count || 0})</span></span>
+      </div>
+      <div class="stat">
+        <span class="label">Reraise</span>
+        <span class="value">${fmtPct(reraise.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${reraise.count || 0})</span></span>
+      </div>
+    `;
   }
 
   function renderProfit(data) {
@@ -427,8 +580,10 @@
 
   async function init() {
     renderToggles();
+    setupWhenIRaiseFilters();
     await loadSummary();
     state.open.add("profit_curve");
+    state.open.add("when_i_raise");
     renderToggles();
     syncPanels();
 

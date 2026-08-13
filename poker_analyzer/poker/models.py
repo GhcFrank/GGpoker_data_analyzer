@@ -6,6 +6,19 @@ from typing import Any
 
 
 @dataclass
+class Action:
+    """One betting action (any player) on a street."""
+
+    street: str  # preflop | flop | turn | river
+    player: str
+    action: str  # fold | check | call | bet | raise | posts*
+    amount: float = 0.0  # chips added by this action
+    to_amount: float = 0.0  # street total after a raise ("raises to $X")
+    pot_before: float = 0.0
+    is_hero: bool = False
+
+
+@dataclass
 class Hand:
     """Normalized representation of a single poker hand."""
 
@@ -29,6 +42,9 @@ class Hand:
     raw_summary: str = ""
     went_to_flop: bool = False
     hero_vpip: bool = False
+    button_seat: int | None = None
+    seat_names: dict[int, str] = field(default_factory=dict)
+    actions: list[Action] = field(default_factory=list)
     extra: dict[str, Any] = field(default_factory=dict)
 
     @property

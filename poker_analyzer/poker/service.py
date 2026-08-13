@@ -60,10 +60,11 @@ class AnalysisService:
         self,
         metric_id: str,
         spec: FilterSpec | None = None,
+        options: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         metric = get_metric(metric_id)
         filtered = self.filtered_dataset(spec)
-        result = metric.compute(filtered)
+        result = metric.compute(filtered, options=options)
         result["filter"] = (spec or FilterSpec()).to_dict()
         result["filtered_hand_count"] = len(filtered.hands)
         result["total_hand_count"] = len(self.dataset.hands)

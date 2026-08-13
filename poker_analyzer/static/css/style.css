@@ -364,6 +364,28 @@ h1 {
 .stat .value.pos { color: var(--accent); }
 .stat .value.neg { color: var(--danger); }
 
+.metric-filter {
+  border-top: 1px solid var(--line);
+  margin: 4px 0 14px;
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.metric-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+}
+
+.metric-filter-row .field-label {
+  min-width: 4.5rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .chart-wrap {
   position: relative;
   height: min(420px, 55vh);

@@ -59,6 +59,15 @@ def _spec_from_body(body: dict[str, Any] | None) -> FilterSpec:
     return FilterSpec.from_payload(body)
 
 
+def _options_from_body(body: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not body:
+        return None
+    raw = body.get("options")
+    if isinstance(raw, dict):
+        return raw
+    return None
+
+
 def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tuple[int, bytes, str]:
     svc = get_service()
 
@@ -146,7 +155,13 @@ def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tupl
                 return _json_bytes(svc.compute_metric(metric_id))
             if method == "POST":
                 body = _read_json(handler)
-                return _json_bytes(svc.compute_metric(metric_id, _spec_from_body(body)))
+                return _json_bytes(
+                    svc.compute_metric(
+                        metric_id,
+                        _spec_from_body(body),
+                        options=_options_from_body(body),
+                    )
+                )
         except KeyError as exc:
             return _error(str(exc), HTTPStatus.NOT_FOUND)
         except ValueError as exc:
@@ -158,7 +173,13 @@ def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tupl
                 return _json_bytes(svc.compute_metric("profit_curve"))
             if method == "POST":
                 body = _read_json(handler)
-                return _json_bytes(svc.compute_metric("profit_curve", _spec_from_body(body)))
+                return _json_bytes(
+                    svc.compute_metric(
+                        "profit_curve",
+                        _spec_from_body(body),
+                        options=_options_from_body(body),
+                    )
+                )
         except KeyError as exc:
             return _error(str(exc), HTTPStatus.NOT_FOUND)
         except ValueError as exc:
@@ -169,7 +190,13 @@ def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tupl
         metric_id = unquote(analyze_match.group(1))
         try:
             body = _read_json(handler)
-            return _json_bytes(svc.compute_metric(metric_id, _spec_from_body(body)))
+            return _json_bytes(
+                svc.compute_metric(
+                    metric_id,
+                    _spec_from_body(body),
+                    options=_options_from_body(body),
+                )
+            )
         except KeyError as exc:
             return _error(str(exc), HTTPStatus.NOT_FOUND)
         except ValueError as exc:

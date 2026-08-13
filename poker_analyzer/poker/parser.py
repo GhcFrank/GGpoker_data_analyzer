@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from poker.models import Hand
+from poker.models import Action, Hand
 
 HAND_HEADER_RE = re.compile(
     r"^Poker Hand #(?P<hand_id>\S+):\s+"
@@ -14,7 +14,8 @@ HAND_HEADER_RE = re.compile(
 )
 
 TABLE_RE = re.compile(
-    r"^Table '(?P<table>[^']+)'\s+(?P<max>\d+)-max",
+    r"^Table '(?P<table>[^']+)'\s+(?P<max>\d+)-max"
+    r"(?:\s+Seat #(?P<button>\d+) is the button)?",
 )
 
 SEAT_RE = re.compile(
@@ -49,6 +50,13 @@ SUMMARY_POT_RE = re.compile(
     r"(?:\s*\|\s*Tax \$(?P<tax>[\d.]+))?"
 )
 
+_STREET_MARKERS = {
+    "*** HOLE CARDS ***": "preflop",
+    "*** FLOP ***": "flop",
+    "*** TURN ***": "turn",
+    "*** RIVER ***": "river",
+}
+
 
 def _money(value: str | None) -> float:
     if not value:
@@ -79,21 +87,29 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
 
     table_name = ""
     max_players = 0
+    button_seat: int | None = None
     hero_seat: int | None = None
     hero_cards: str | None = None
+    seat_names: dict[int, str] = {}
 
     hero_invested = 0.0
     hero_returned = 0.0
     hero_collected = 0.0
     total_collected = 0.0
-    street_contrib = 0.0
+    street_contrib: dict[str, float] = {}
     went_to_flop = False
     hero_vpip = False
     in_summary = False
+    street = "preflop"
+    pot = 0.0
+    actions: list[Action] = []
 
     total_pot = 0.0
     rake = jackpot = bingo = fortune = tax = 0.0
     summary_lines: list[str] = []
+
+    def reset_street_contrib() -> None:
+        street_contrib.clear()
 
     for ln in non_empty:
         if not ln.strip():
@@ -104,12 +120,17 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
             if m:
                 table_name = m.group("table")
                 max_players = int(m.group("max"))
+                if m.group("button"):
+                    button_seat = int(m.group("button"))
             continue
 
         seat_m = SEAT_RE.match(ln)
         if seat_m:
-            if seat_m.group("name") == "Hero":
-                hero_seat = int(seat_m.group("seat"))
+            seat_no = int(seat_m.group("seat"))
+            name = seat_m.group("name")
+            seat_names[seat_no] = name
+            if name == "Hero":
+                hero_seat = seat_no
             continue
 
         dealt = DEALT_HERO_RE.match(ln)
@@ -117,17 +138,21 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
             hero_cards = dealt.group("cards")
             continue
 
-        if ln.startswith("*** FLOP ***"):
-            went_to_flop = True
-            street_contrib = 0.0
+        street_hit = False
+        for marker, street_name in _STREET_MARKERS.items():
+            if ln.startswith(marker):
+                if street_name == "flop":
+                    went_to_flop = True
+                if street_name != "preflop":
+                    # Blinds are posted before HOLE CARDS and count toward preflop;
+                    # only reset contribution when entering a new postflop street.
+                    reset_street_contrib()
+                street = street_name
+                street_hit = True
+                break
+        if street_hit:
             continue
-        if ln.startswith("*** TURN ***") or ln.startswith("*** RIVER ***"):
-            street_contrib = 0.0
-            continue
-        # Blinds are posted before HOLE CARDS and count toward preflop contribution;
-        # do not reset street_contrib here.
-        if ln.startswith("*** HOLE CARDS ***"):
-            continue
+
         if ln.startswith("*** SHOWDOWN ***"):
             continue
         if ln.startswith("*** SUMMARY ***"):
@@ -148,10 +173,12 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
 
         returned = RETURNED_RE.match(ln)
         if returned:
-            if returned.group("name") == "Hero":
-                amt = _money(returned.group("amount"))
+            name = returned.group("name")
+            amt = _money(returned.group("amount"))
+            pot = max(0.0, round(pot - amt, 6))
+            street_contrib[name] = max(0.0, round(street_contrib.get(name, 0.0) - amt, 6))
+            if name == "Hero":
                 hero_returned += amt
-                street_contrib = max(0.0, street_contrib - amt)
             continue
 
         collected = COLLECTED_RE.match(ln)
@@ -169,42 +196,96 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
         name = action.group("name")
         act = action.group("action")
         rest = action.group("rest") or ""
-
-        if name != "Hero":
-            continue
+        is_hero = name == "Hero"
+        pot_before = pot
 
         # Posts (blinds/antes) — not VPIP
         if act.startswith("posts"):
             m = POSTS_RE.search(act + rest) or POSTS_GENERIC_RE.search(act + rest)
             if m:
                 amt = _money(m.group("amount"))
-                hero_invested += amt
-                street_contrib += amt
+                pot = round(pot + amt, 6)
+                street_contrib[name] = round(street_contrib.get(name, 0.0) + amt, 6)
+                actions.append(
+                    Action(
+                        street=street,
+                        player=name,
+                        action=act,
+                        amount=amt,
+                        pot_before=pot_before,
+                        is_hero=is_hero,
+                    )
+                )
+                if is_hero:
+                    hero_invested += amt
             continue
 
         if act == "raises":
             m = RAISES_RE.search(act + rest)
             if m:
                 to_amt = _money(m.group("to"))
-                add = round(to_amt - street_contrib, 6)
+                prev = street_contrib.get(name, 0.0)
+                add = round(to_amt - prev, 6)
                 if add < 0:
-                    # Fallback to raise-by if street tracking drifted
                     add = _money(m.group("by"))
-                hero_invested += add
-                street_contrib += add
-                hero_vpip = True
+                    to_amt = round(prev + add, 6)
+                pot = round(pot + add, 6)
+                street_contrib[name] = to_amt
+                actions.append(
+                    Action(
+                        street=street,
+                        player=name,
+                        action="raise",
+                        amount=add,
+                        to_amount=to_amt,
+                        pot_before=pot_before,
+                        is_hero=is_hero,
+                    )
+                )
+                if is_hero:
+                    hero_invested += add
+                    hero_vpip = True
             continue
 
         if act in ("bets", "calls"):
             m = BETS_CALLS_RE.search(act + rest)
             if m:
                 amt = _money(m.group("amount"))
-                hero_invested += amt
-                street_contrib += amt
-                hero_vpip = True
+                pot = round(pot + amt, 6)
+                street_contrib[name] = round(street_contrib.get(name, 0.0) + amt, 6)
+                kind = "bet" if act == "bets" else "call"
+                actions.append(
+                    Action(
+                        street=street,
+                        player=name,
+                        action=kind,
+                        amount=amt,
+                        pot_before=pot_before,
+                        is_hero=is_hero,
+                    )
+                )
+                if is_hero:
+                    hero_invested += amt
+                    hero_vpip = True
             continue
 
-        # checks / folds / shows / mucks — no money
+        if act in ("checks", "folds", "shows", "mucks"):
+            kind = {
+                "checks": "check",
+                "folds": "fold",
+                "shows": "show",
+                "mucks": "muck",
+            }[act]
+            actions.append(
+                Action(
+                    street=street,
+                    player=name,
+                    action=kind,
+                    pot_before=pot_before,
+                    is_hero=is_hero,
+                )
+            )
+            continue
 
     return Hand(
         hand_id=hand_id,
@@ -227,6 +308,9 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
         raw_summary="\n".join(summary_lines),
         went_to_flop=went_to_flop,
         hero_vpip=hero_vpip,
+        button_seat=button_seat,
+        seat_names=seat_names,
+        actions=actions,
         extra={"total_collected": round(total_collected, 6)},
     )
 

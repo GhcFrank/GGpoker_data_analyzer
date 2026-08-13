@@ -20,7 +20,7 @@ class Metric(ABC):
     chart_type: ClassVar[str] = "line"  # hint for frontend
 
     @abstractmethod
-    def compute(self, dataset: HandDataset) -> dict[str, Any]:
+    def compute(self, dataset: HandDataset, options: dict[str, Any] | None = None) -> dict[str, Any]:
         """Return a JSON-serializable payload for this metric."""
         raise NotImplementedError
 
@@ -64,3 +64,4 @@ def list_metrics() -> list[dict[str, str]]:
 def load_builtin_metrics() -> None:
     """Import built-in metric modules so they self-register."""
     from poker.metrics import profit  # noqa: F401
+    from poker.metrics import when_i_raise  # noqa: F401
