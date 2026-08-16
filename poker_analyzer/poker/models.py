@@ -46,6 +46,7 @@ class Hand:
     button_seat: int | None = None
     seat_names: dict[int, str] = field(default_factory=dict)
     actions: list[Action] = field(default_factory=list)
+    shown_cards: dict[str, tuple[str, ...]] = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)
 
     @property

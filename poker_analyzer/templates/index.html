@@ -155,6 +155,70 @@
         <p class="empty-hint" id="whenIRaiseEmpty" hidden>当前条件下没有 Hero 下注/加注样本。</p>
       </section>
 
+      <section
+        class="analysis-panel"
+        id="panel-preflop_analysis"
+        data-metric="preflop_analysis"
+        hidden
+      >
+        <div class="panel-head">
+          <div>
+            <h2>翻前分析</h2>
+            <p class="panel-desc">
+              使用上方数据筛选后的手牌。大小盲默认入池；第一个加注到 ≥2bb 的人是 open raise，之后依次是 3bet / 4bet / 5bet。
+              跟注手牌按 AKs / AKo 区分同花；摊牌看不到则记为未知。
+            </p>
+          </div>
+          <div class="stat-row" id="preflopStats"></div>
+        </div>
+
+        <div class="metric-filter" id="preflopFilters">
+          <div class="metric-filter-row">
+            <span class="field-label">我的位置</span>
+            <div class="stakes-group" id="pfHeroPosGroup"></div>
+          </div>
+          <div class="metric-filter-row">
+            <span class="field-label">动作</span>
+            <div class="stakes-group" id="pfActionGroup"></div>
+          </div>
+          <div class="metric-filter-row">
+            <span class="field-label">入池过滤</span>
+            <label class="flop-detail-toggle" title="关闭后去掉翻前有人 limp（含 SB 补盲）的手牌">
+              <input type="checkbox" id="pfAllowLimp" checked />
+              <span class="flop-tex-slider" aria-hidden="true"></span>
+              <span class="flop-detail-toggle-text">允许 limp</span>
+            </label>
+            <label class="flop-detail-toggle" title="关闭后去掉 call open / 冷跟 3bet / 冷跟 4bet 的手牌">
+              <input type="checkbox" id="pfAllowCall" checked />
+              <span class="flop-tex-slider" aria-hidden="true"></span>
+              <span class="flop-detail-toggle-text">允许 call</span>
+            </label>
+          </div>
+          <div class="metric-filter-row" id="pfOpenerRow" hidden>
+            <span class="field-label" id="pfVillainLabel">Open 对手</span>
+            <div class="stakes-group" id="pfOpenerPosGroup"></div>
+          </div>
+        </div>
+
+        <p class="empty-hint" id="preflopEmpty" hidden>当前条件下没有符合的翻前样本。</p>
+        <div class="hand-dist" id="preflopHandsWrap" hidden>
+          <h3 class="hand-dist-title">跟注手牌分布</h3>
+          <p class="hand-dist-hint" id="preflopHandsHint"></p>
+          <div class="hand-dist-table-wrap">
+            <table class="hand-dist-table" id="preflopHandsTable">
+              <thead>
+                <tr>
+                  <th>手牌</th>
+                  <th>次数</th>
+                  <th>占比</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section class="analysis-panel placeholder" id="panel-reserved_extra" data-metric="reserved_extra" hidden>
         <div class="panel-head">
           <div>

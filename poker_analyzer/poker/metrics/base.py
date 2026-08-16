@@ -63,5 +63,6 @@ def list_metrics() -> list[dict[str, str]]:
 
 def load_builtin_metrics() -> None:
     """Import built-in metric modules so they self-register."""
+    from poker.metrics import preflop_analysis  # noqa: F401
     from poker.metrics import profit  # noqa: F401
     from poker.metrics import when_i_raise  # noqa: F401

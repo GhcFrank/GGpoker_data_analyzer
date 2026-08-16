@@ -2,7 +2,24 @@
   const panelDefs = [
     { id: "profit_curve", label: "盈利曲线", live: true },
     { id: "when_i_raise", label: "When I Raise", live: true },
+    { id: "preflop_analysis", label: "翻前分析", live: true },
     { id: "reserved_extra", label: "更多分析 (预留)", live: false },
+  ];
+
+  const pfPositionOpts = [
+    { id: "UTG", label: "UTG" },
+    { id: "HJ", label: "HJ" },
+    { id: "CO", label: "CO" },
+    { id: "BTN", label: "BTN" },
+    { id: "SB", label: "SB" },
+    { id: "BB", label: "BB" },
+  ];
+  const pfPositionOrder = pfPositionOpts.map((o) => o.id);
+  const pfActionOpts = [
+    { id: "open_raise", label: "Open Raise" },
+    { id: "3bet", label: "3bet" },
+    { id: "4bet", label: "4bet" },
+    { id: "5bet", label: "5bet" },
   ];
 
   const wirStreetOpts = [
@@ -48,6 +65,7 @@
     summary: null,
     filterDefaults: null,
     wirRequestId: 0,
+    pfRequestId: 0,
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -126,12 +144,15 @@
     host.innerHTML = "";
     for (const opt of opts) {
       const label = document.createElement("label");
-      label.className = "stake-chip has-data";
+      const disabled = !!opt.disabled;
+      label.className = "stake-chip has-data" + (disabled ? " is-disabled" : "");
       const checked = checkedIds.has(opt.id) ? "checked" : "";
       const type = multi ? "checkbox" : "radio";
+      const disabledAttr = disabled ? "disabled" : "";
+      const title = disabled ? ' title="后期开放"' : "";
       label.innerHTML = `
-        <input type="${type}" name="${name}" value="${opt.id}" ${checked} />
-        <span>${opt.label}</span>
+        <input type="${type}" name="${name}" value="${opt.id}" ${checked} ${disabledAttr} />
+        <span${title}>${opt.label}</span>
       `;
       host.appendChild(label);
     }
@@ -205,6 +226,111 @@
       }
 
       scheduleWhenIRaiseRefresh();
+    });
+  }
+
+  function setupPreflopFilters() {
+    fillChipGroup($("#pfHeroPosGroup"), pfPositionOpts, {
+      multi: false,
+      name: "pf-hero-pos",
+      checkedIds: new Set(["BTN"]),
+    });
+    fillChipGroup($("#pfActionGroup"), pfActionOpts, {
+      multi: false,
+      name: "pf-action",
+      checkedIds: new Set(["open_raise"]),
+    });
+    const allowLimp = $("#pfAllowLimp");
+    const allowCall = $("#pfAllowCall");
+    if (allowLimp) allowLimp.checked = true;
+    if (allowCall) allowCall.checked = true;
+    syncPreflopOpenerRow();
+
+    const host = $("#preflopFilters");
+    host.addEventListener("change", (event) => {
+      const target = event.target;
+      if (target && (target.name === "pf-hero-pos" || target.name === "pf-action")) {
+        syncPreflopOpenerRow();
+      }
+      schedulePreflopRefresh();
+    });
+  }
+
+  function selectedPreflopHeroPos() {
+    const el = document.querySelector("#pfHeroPosGroup input:checked");
+    return el ? el.value : "BTN";
+  }
+
+  function selectedPreflopAction() {
+    const el = document.querySelector("#pfActionGroup input:checked");
+    return el ? el.value : "open_raise";
+  }
+
+  function syncPreflopOpenerRow() {
+    const row = $("#pfOpenerRow");
+    const host = $("#pfOpenerPosGroup");
+    const label = $("#pfVillainLabel");
+    const action = selectedPreflopAction();
+    const heroPos = selectedPreflopHeroPos();
+    const show = action === "3bet" || action === "4bet" || action === "5bet";
+    row.hidden = !show;
+    if (!show) {
+      host.innerHTML = "";
+      return;
+    }
+
+    let villainOpts;
+    if (action === "3bet") {
+      if (label) label.textContent = "Open 对手";
+      const heroIdx = pfPositionOrder.indexOf(heroPos);
+      villainOpts = pfPositionOpts.filter((_, i) => i < heroIdx);
+    } else if (action === "4bet") {
+      if (label) label.textContent = "3bet 对手";
+      villainOpts = pfPositionOpts.filter((o) => o.id !== heroPos);
+    } else {
+      if (label) label.textContent = "4bet 对手";
+      villainOpts = pfPositionOpts.filter((o) => o.id !== heroPos);
+    }
+
+    const prev = document.querySelector("#pfOpenerPosGroup input:checked");
+    const prevId = prev ? prev.value : "";
+    const fallback = villainOpts.some((o) => o.id === "BB")
+      ? "BB"
+      : villainOpts.length
+        ? villainOpts[villainOpts.length - 1].id
+        : "";
+    const nextId = villainOpts.some((o) => o.id === prevId) ? prevId : fallback;
+    fillChipGroup(host, villainOpts, {
+      multi: false,
+      name: "pf-opener-pos",
+      checkedIds: new Set(nextId ? [nextId] : []),
+    });
+  }
+
+  function readPreflopOptions() {
+    const hero_position = selectedPreflopHeroPos();
+    const action = selectedPreflopAction();
+    const allowLimp = $("#pfAllowLimp");
+    const allowCall = $("#pfAllowCall");
+    const options = {
+      hero_position,
+      action,
+      allow_limp: allowLimp ? allowLimp.checked : true,
+      allow_call: allowCall ? allowCall.checked : true,
+    };
+    const villain = document.querySelector("#pfOpenerPosGroup input:checked");
+    if (action === "3bet" && villain) options.opener_position = villain.value;
+    if (action === "4bet" && villain) options.threebettor_position = villain.value;
+    if (action === "5bet" && villain) options.fourbettor_position = villain.value;
+    return options;
+  }
+
+  function schedulePreflopRefresh() {
+    const panel = $("#panel-preflop_analysis");
+    if (!state.open.has("preflop_analysis") || (panel && panel.hidden)) return;
+    analyzePreflop().catch((err) => {
+      $("#filterStatus").textContent = `分析失败: ${err.message}`;
+      console.error(err);
     });
   }
 
@@ -672,6 +798,8 @@
           renderProfit(data);
         } else if (def.id === "when_i_raise") {
           await analyzeWhenIRaise();
+        } else if (def.id === "preflop_analysis") {
+          await analyzePreflop();
         }
       }
 
@@ -692,6 +820,138 @@
       btn.disabled = false;
       btn.textContent = "分析";
     }
+  }
+
+  async function analyzePreflop() {
+    const requestId = ++state.pfRequestId;
+    const filter = readFilter();
+    const options = readPreflopOptions();
+    const stats = $("#preflopStats");
+    if (stats) {
+      stats.innerHTML = `
+        <div class="stat">
+          <span class="label">样本数</span>
+          <span class="value" style="color:var(--muted)">计算中…</span>
+        </div>
+      `;
+    }
+    const data = await fetchJSON("/api/metrics/preflop_analysis", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...filter, options }),
+    });
+    if (requestId !== state.pfRequestId) return;
+    renderPreflop(data);
+  }
+
+  function renderPreflopHands(data) {
+    const wrap = $("#preflopHandsWrap");
+    const hint = $("#preflopHandsHint");
+    const tbody = document.querySelector("#preflopHandsTable tbody");
+    if (!wrap || !tbody) return;
+    const rows = data.call_hands || [];
+    const show = data.action === "4bet" || data.action === "5bet";
+    wrap.hidden = !show;
+    if (!show) {
+      tbody.innerHTML = "";
+      return;
+    }
+    const n = data.call_hand_count || 0;
+    if (hint) {
+      hint.textContent = n
+        ? `共 ${n} 次跟注；能摊开的按 AKs/AKo 计，看不到记为「未知」。`
+        : "还没有跟注样本。";
+    }
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="3" class="unknown">无</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows
+      .map((row) => {
+        const cls = row.hand === "未知" ? "unknown" : "";
+        return `<tr class="${cls}"><td>${row.hand}</td><td>${row.count}</td><td>${fmtPct(row.pct)}</td></tr>`;
+      })
+      .join("");
+  }
+
+  function renderPreflop(data) {
+    const empty = $("#preflopEmpty");
+    const stats = $("#preflopStats");
+    const action = data.action || "open_raise";
+
+    if (!data.spot_count) {
+      empty.hidden = false;
+      if (action === "3bet" && !((data.options && data.options.positions_in_front) || []).length) {
+        empty.textContent = "当前英雄位置前面没有 open raise 座位（例如 UTG），无法统计 3bet。";
+      } else {
+        empty.textContent = "当前条件下没有符合的翻前样本。";
+      }
+      stats.innerHTML = `
+        <div class="stat">
+          <span class="label">样本数</span>
+          <span class="value">0</span>
+        </div>
+      `;
+      renderPreflopHands({ action, call_hands: [], call_hand_count: 0 });
+      return;
+    }
+
+    empty.hidden = true;
+    const cells = [
+      ["样本数", String(data.spot_count)],
+    ];
+    if (action === "open_raise") {
+      const fold = data.all_fold || {};
+      const three = data.faced_3bet || {};
+      cells.push(["直接收池", `${fmtPct(fold.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${fold.count || 0})</span>`]);
+      cells.push(["被 3bet", `${fmtPct(three.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${three.count || 0})</span>`]);
+    } else if (action === "3bet") {
+      const ofold = data.opener_fold || {};
+      const ocall = data.opener_call || {};
+      const o4 = data.opener_4bet || {};
+      const pot = data.all_fold || {};
+      const c4 = data.cold_4bet || {};
+      if (data.opener_responded != null) {
+        cells.push(["对手面对 3bet", String(data.opener_responded)]);
+      }
+      cells.push(["对手弃牌", `${fmtPct(ofold.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${ofold.count || 0})</span>`]);
+      cells.push(["对手跟注", `${fmtPct(ocall.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${ocall.count || 0})</span>`]);
+      cells.push(["对手 4bet", `${fmtPct(o4.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${o4.count || 0})</span>`]);
+      cells.push(["直接收池", `${fmtPct(pot.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${pot.count || 0})</span>`]);
+      cells.push(["后位冷 4bet", `${fmtPct(c4.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${c4.count || 0})</span>`]);
+    } else if (action === "4bet") {
+      const pot = data.all_fold || {};
+      const five = data.faced_5bet || {};
+      const call = data.threebettor_call || {};
+      if (data.threebettor_faced != null) {
+        cells.push(["3bet 者面对 4bet", String(data.threebettor_faced)]);
+      }
+      cells.push(["直接收池", `${fmtPct(pot.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${pot.count || 0})</span>`]);
+      cells.push(["被 5bet", `${fmtPct(five.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${five.count || 0})</span>`]);
+      cells.push(["3bet 者跟注", `${fmtPct(call.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${call.count || 0})</span>`]);
+    } else if (action === "5bet") {
+      const fold = data.fourbettor_fold || {};
+      const call = data.fourbettor_call || {};
+      const th = data.theoretical_equity || {};
+      const ac = data.actual_winrate || {};
+      if (data.fourbettor_faced != null) {
+        cells.push(["4bet 者面对 5bet", String(data.fourbettor_faced)]);
+      }
+      cells.push(["对方弃牌", `${fmtPct(fold.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${fold.count || 0})</span>`]);
+      cells.push(["对方跟注", `${fmtPct(call.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${call.count || 0})</span>`]);
+      cells.push(["理论胜率", `${fmtPct(th.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${th.count || 0} 手已知牌)</span>`]);
+      cells.push(["实际胜率", `${fmtPct(ac.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${ac.count || 0})</span>`]);
+    }
+    stats.innerHTML = cells
+      .map(
+        ([label, value]) => `
+        <div class="stat">
+          <span class="label">${label}</span>
+          <span class="value">${value}</span>
+        </div>`
+      )
+      .join("");
+    renderPreflopHands(data);
   }
 
   function renderWhenIRaise(data) {
@@ -862,9 +1122,8 @@
   async function init() {
     renderToggles();
     setupWhenIRaiseFilters();
+    setupPreflopFilters();
     await loadSummary();
-    state.open.add("profit_curve");
-    state.open.add("when_i_raise");
     renderToggles();
     syncPanels();
 

@@ -57,6 +57,15 @@ _STREET_MARKERS = {
     "*** RIVER ***": "river",
 }
 
+SHOW_CARDS_RE = re.compile(
+    r"\[(?P<cards>[2-9TJQKA][cdhs]\s+[2-9TJQKA][cdhs])\]",
+    re.IGNORECASE,
+)
+SEAT_SHOWED_RE = re.compile(
+    r"^Seat \d+:\s+(?P<name>\S+).*?\b(?:showed|mucked) \[(?P<cards>[^\]]+)\]",
+    re.IGNORECASE,
+)
+
 FLOP_LINE_RE = re.compile(r"^\*\*\* FLOP \*\*\* \[(?P<cards>[^\]]+)\]")
 TURN_LINE_RE = re.compile(r"^\*\*\* TURN \*\*\* \[(?P<prev>[^\]]+)\] \[(?P<card>[^\]]+)\]")
 RIVER_LINE_RE = re.compile(r"^\*\*\* RIVER \*\*\* \[(?P<prev>[^\]]+)\] \[(?P<card>[^\]]+)\]")
@@ -113,6 +122,7 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
     street = "preflop"
     pot = 0.0
     actions: list[Action] = []
+    shown_cards: dict[str, tuple[str, ...]] = {}
 
     total_pot = 0.0
     rake = jackpot = bingo = fortune = tax = 0.0
@@ -197,6 +207,12 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
                 if len(parsed) >= 3:
                     flop_cards = parsed[:3]
                     went_to_flop = True
+            showed = SEAT_SHOWED_RE.match(ln)
+            if showed:
+                name = showed.group("name")
+                cards = _parse_card_tokens(showed.group("cards"))
+                if len(cards) >= 2 and name not in shown_cards:
+                    shown_cards[name] = cards[:2]
             pot_m = SUMMARY_POT_RE.search(ln)
             if pot_m:
                 total_pot = _money(pot_m.group("pot"))
@@ -312,6 +328,12 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
                 "shows": "show",
                 "mucks": "muck",
             }[act]
+            if kind in ("show", "muck"):
+                cards_m = SHOW_CARDS_RE.search(rest)
+                if cards_m:
+                    cards = _parse_card_tokens(cards_m.group("cards"))
+                    if len(cards) >= 2:
+                        shown_cards[name] = cards[:2]
             actions.append(
                 Action(
                     street=street,
@@ -348,6 +370,7 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
         button_seat=button_seat,
         seat_names=seat_names,
         actions=actions,
+        shown_cards=shown_cards,
         extra={"total_collected": round(total_collected, 6)},
     )
 
