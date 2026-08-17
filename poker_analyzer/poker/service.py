@@ -71,6 +71,21 @@ class AnalysisService:
         result["total_hand_count"] = len(self.dataset.hands)
         return result
 
+    def replay_hand(
+        self,
+        source: str,
+        index: int,
+        spec: FilterSpec | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        from poker.replay import get_replay
+
+        filtered = self.filtered_dataset(spec)
+        result = get_replay(filtered, source, index, options)
+        result["source"] = source
+        result["filter"] = (spec or FilterSpec()).to_dict()
+        return result
+
 
 _service: AnalysisService | None = None
 

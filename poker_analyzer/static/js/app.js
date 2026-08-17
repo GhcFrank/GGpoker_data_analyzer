@@ -1148,6 +1148,25 @@
       $("#filterStatus").textContent = "数据已重新扫描，请再次点击「分析」。";
     });
 
+    const pfReplayBtn = $("#pfReplayBtn");
+    if (pfReplayBtn) {
+      pfReplayBtn.addEventListener("click", () => {
+        window.PokerReplay.open("preflop_analysis", () => ({
+          filter: readFilter(),
+          options: readPreflopOptions(),
+        }));
+      });
+    }
+    const wirReplayBtn = $("#wirReplayBtn");
+    if (wirReplayBtn) {
+      wirReplayBtn.addEventListener("click", () => {
+        window.PokerReplay.open("when_i_raise", () => ({
+          filter: readFilter(),
+          options: readWhenIRaiseOptions(),
+        }));
+      });
+    }
+
     await analyze();
   }
 

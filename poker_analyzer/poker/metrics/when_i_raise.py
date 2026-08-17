@@ -419,6 +419,15 @@ def _spot_matches(
     return True
 
 
+def hand_matches_raise_options(hand: Hand, options: dict[str, Any] | None) -> bool:
+    """True if this hand has at least one Hero raise spot matching options."""
+    opts = options or {}
+    flop_line = classify_flop_to_turn(hand) if _truthy(opts.get("turn_detail")) else None
+    return any(
+        _spot_matches(s, opts, flop_line=flop_line) for s in extract_hero_raise_spots(hand)
+    )
+
+
 @register
 class WhenIRaiseMetric(Metric):
     """Frequency of fold / call / reraise when Hero bets or raises."""

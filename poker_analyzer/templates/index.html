@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{ title }}</title>
   <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="stylesheet" href="/static/css/replay.css" />
   <script src="/static/js/chart.umd.min.js"></script>
 </head>
 <body>
@@ -106,7 +107,10 @@
             <h2>When I Raise</h2>
             <p class="panel-desc">统计 Hero 下注/加注后，对手全弃牌、跟注、再加注的频率。默认 General（条件全选）等于不限制该轴。</p>
           </div>
-          <div class="stat-row" id="whenIRaiseStats"></div>
+          <div class="panel-head-aside">
+            <button type="button" class="btn ghost" id="wirReplayBtn">数据可视化</button>
+            <div class="stat-row" id="whenIRaiseStats"></div>
+          </div>
         </div>
 
         <div class="metric-filter" id="whenIRaiseFilters">
@@ -169,7 +173,10 @@
               跟注手牌按 AKs / AKo 区分同花；摊牌看不到则记为未知。
             </p>
           </div>
-          <div class="stat-row" id="preflopStats"></div>
+          <div class="panel-head-aside">
+            <button type="button" class="btn ghost" id="pfReplayBtn">数据可视化</button>
+            <div class="stat-row" id="preflopStats"></div>
+          </div>
         </div>
 
         <div class="metric-filter" id="preflopFilters">
@@ -231,6 +238,29 @@
     </main>
   </div>
 
+  <div class="replay-overlay" id="replayOverlay" hidden>
+    <div class="replay-modal" role="dialog" aria-modal="true" aria-labelledby="replayTitle">
+      <div class="replay-top">
+        <button type="button" class="btn ghost replay-nav-btn" id="replayPrevHand">上一个</button>
+        <div class="replay-top-mid">
+          <h3 id="replayTitle">手牌回放</h3>
+          <p class="replay-page" id="replayPage">—</p>
+        </div>
+        <button type="button" class="btn ghost replay-nav-btn" id="replayNextHand">下一个</button>
+        <button type="button" class="replay-close" id="replayClose" aria-label="关闭">×</button>
+      </div>
+      <p class="replay-meta" id="replayMeta"></p>
+      <div class="replay-stage" id="replayStage"></div>
+      <div class="replay-caption" id="replayCaption"></div>
+      <div class="replay-steps">
+        <button type="button" class="replay-arrow" id="replayPrevFrame" hidden aria-label="上一行动">←</button>
+        <span class="replay-step-label" id="replayStepLabel">—</span>
+        <button type="button" class="replay-arrow" id="replayNextFrame" hidden aria-label="下一行动">→</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/replay.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>

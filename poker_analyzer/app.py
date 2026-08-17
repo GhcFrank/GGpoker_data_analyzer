@@ -182,6 +182,24 @@ def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tupl
         except ValueError as exc:
             return _error(str(exc), HTTPStatus.BAD_REQUEST)
 
+    if path == "/api/replay/hand" and method == "POST":
+        try:
+            body = _read_json(handler)
+            source = str(body.get("source") or "").strip()
+            if not source:
+                return _error("source is required", HTTPStatus.BAD_REQUEST)
+            index = body.get("index", 0)
+            return _json_bytes(
+                svc.replay_hand(
+                    source,
+                    index,
+                    _spec_from_body(body),
+                    _options_from_body(body),
+                )
+            )
+        except ValueError as exc:
+            return _error(str(exc), HTTPStatus.BAD_REQUEST)
+
     if path in ("/api/analyze/profit_curve", "/api/profit/curve"):
         try:
             if method == "GET":
