@@ -3,7 +3,7 @@
     { id: "profit_curve", label: "盈利曲线", live: true },
     { id: "when_i_raise", label: "When I Raise", live: true },
     { id: "preflop_analysis", label: "翻前分析", live: true },
-    { id: "reserved_extra", label: "更多分析 (预留)", live: false },
+    { id: "tools", label: "小工具集合", live: false },
   ];
 
   const pfPositionOpts = [

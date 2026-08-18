@@ -680,6 +680,498 @@ h1 {
   margin-bottom: 8px;
 }
 
+/* --- Tools panel --- */
+.tools-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.tool-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+  background: color-mix(in srgb, var(--bg2) 70%, transparent);
+}
+
+.tool-title {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.tool-hint {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.tool-foot {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.muted-inline {
+  font-style: normal;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.mdf-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+}
+
+.tool-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.tool-field-wide {
+  flex: 1 1 240px;
+}
+
+.mdf-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mdf-input-wrap input {
+  width: 5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--bg1);
+  color: var(--text);
+  font: inherit;
+}
+
+.mdf-suffix {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.mdf-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.stake-chip-btn {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: var(--bg1);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.stake-chip-btn:hover {
+  border-color: var(--accent);
+}
+
+.mdf-result {
+  margin-top: 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.mdf-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.mdf-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.equity-board-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.equity-players {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.equity-side-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.equity-side-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.equity-side-name.p1 { color: #6eb5ff; }
+.equity-side-name.p2 { color: #f0a060; }
+
+.equity-mode {
+  display: flex;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.equity-mode label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.eq-range-input {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.hand-matrix {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg1);
+  padding: 4px;
+}
+
+.hand-matrix-table {
+  border-collapse: collapse;
+  font-size: 0.62rem;
+  user-select: none;
+}
+
+.hand-matrix-table th {
+  color: var(--muted);
+  font-weight: 600;
+  padding: 2px 3px;
+  text-align: center;
+}
+
+.hand-matrix-cell {
+  border: none;
+  border-radius: 3px;
+  padding: 3px 2px;
+  min-width: 2.1rem;
+  font: inherit;
+  font-size: 0.62rem;
+  cursor: pointer;
+  background: var(--bg2);
+  color: var(--muted);
+}
+
+.hand-matrix-cell:hover {
+  background: #2a3848;
+  color: var(--text);
+}
+
+.hand-matrix-cell.on {
+  background: color-mix(in srgb, var(--accent) 35%, var(--bg2));
+  color: var(--text);
+  font-weight: 600;
+}
+
+.equity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.tool-status {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.tool-status.error {
+  color: var(--danger);
+}
+
+.equity-result {
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.equity-bar {
+  display: flex;
+  height: 28px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg1);
+  border: 1px solid var(--line);
+}
+
+.equity-bar-p1 {
+  background: linear-gradient(90deg, #3a7fc4, #6eb5ff);
+  transition: width 0.35s ease;
+}
+
+.equity-bar-tie {
+  background: #5a6570;
+  transition: width 0.35s ease;
+}
+
+.equity-bar-p2 {
+  background: linear-gradient(90deg, #f0a060, #c47a30);
+  transition: width 0.35s ease;
+  flex: 1;
+}
+
+.equity-pcts {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 8px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.equity-pct .eq-pct-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.equity-pct .eq-pct-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.equity-pct.p1 .eq-pct-value { color: #6eb5ff; }
+.equity-pct.p2 .eq-pct-value { color: #f0a060; }
+.equity-pct.tie .eq-pct-value { color: var(--muted); font-size: 1rem; }
+
+.eq-hand-ui {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.eq-hand-slots {
+  display: flex;
+  gap: 6px;
+}
+
+.card-slot-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.eq-board-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 2.6rem;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.eq-board-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.eq-pick-btn {
+  font-size: 0.82rem;
+  padding: 6px 12px;
+}
+
+.playing-card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 3.4rem;
+  border-radius: 6px;
+  border: 1px solid #4a5a6a;
+  background: linear-gradient(145deg, #f8f9fb, #e2e6ec);
+  color: #1a2230;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.playing-card.mini {
+  width: 2.1rem;
+  height: 2.8rem;
+  font-size: 0.85rem;
+}
+
+.playing-card.red {
+  color: #c43c3c;
+}
+
+.playing-card.empty {
+  border-style: dashed;
+  background: var(--bg1);
+  color: var(--muted);
+  font-size: 1.2rem;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.pc-rank {
+  font-size: 0.95rem;
+}
+
+.pc-suit {
+  font-size: 0.9rem;
+  margin-top: 2px;
+}
+
+.playing-card.mini .pc-rank { font-size: 0.8rem; }
+.playing-card.mini .pc-suit { font-size: 0.75rem; }
+
+.btn.is-running {
+  background: var(--danger);
+  color: #fff;
+}
+
+.card-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(6, 10, 14, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.card-picker-overlay[hidden] {
+  display: none !important;
+}
+
+.card-picker-modal {
+  width: min(720px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 18px 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.card-picker-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.card-picker-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.card-picker-hint {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.card-picker-grid {
+  overflow-x: auto;
+}
+
+.card-picker-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.8rem;
+}
+
+.card-picker-table th {
+  color: var(--muted);
+  font-weight: 600;
+  padding: 4px 3px;
+  text-align: center;
+}
+
+.card-picker-table th.red {
+  color: #e07070;
+}
+
+.picker-card {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  width: 2.4rem;
+  height: 3rem;
+  padding: 2px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #f8f9fb, #e2e6ec);
+  color: #1a2230;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1.1;
+}
+
+.picker-card.red {
+  color: #c43c3c;
+}
+
+.picker-card:hover:not(:disabled) {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.picker-card.on {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  background: color-mix(in srgb, var(--accent) 25%, #f8f9fb);
+}
+
+.picker-card.blocked,
+.picker-card:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
+}
+
+.card-picker-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 720px) {
+  .equity-players {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 640px) {
   .page { padding: 20px 14px 48px; }
   .header { flex-direction: column; }

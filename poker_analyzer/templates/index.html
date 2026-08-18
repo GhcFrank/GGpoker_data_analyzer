@@ -226,14 +226,129 @@
         </div>
       </section>
 
-      <section class="analysis-panel placeholder" id="panel-reserved_extra" data-metric="reserved_extra" hidden>
+      <section
+        class="analysis-panel"
+        id="panel-tools"
+        data-metric="tools"
+        hidden
+      >
         <div class="panel-head">
           <div>
-            <h2>更多分析</h2>
-            <p class="panel-desc">预留面板，可按同样按钮开关模式扩展。</p>
+            <h2>小工具集合</h2>
+            <p class="panel-desc">翻前/翻后胜率计算与最低防守频率等实用工具，无需加载牌谱即可使用。</p>
           </div>
         </div>
-        <div class="placeholder-body">后续指标位置</div>
+
+        <div class="tools-wrap">
+          <article class="tool-card" id="toolMdf">
+            <h3 class="tool-title">最低防守频率 (MDF)</h3>
+            <p class="tool-hint">面对下注时，为阻止对手用任意两张牌盈利，需继续（跟注或加注）的最低频率。公式：底池 / (底池 + 下注)。</p>
+            <div class="mdf-row">
+              <label class="tool-field">
+                <span>下注占底池</span>
+                <div class="mdf-input-wrap">
+                  <input type="number" id="mdfBetPct" min="0" step="1" value="66" />
+                  <span class="mdf-suffix">%</span>
+                </div>
+              </label>
+              <div class="mdf-presets" id="mdfPresets">
+                <button type="button" class="stake-chip-btn" data-pct="25">25%</button>
+                <button type="button" class="stake-chip-btn" data-pct="33">33%</button>
+                <button type="button" class="stake-chip-btn" data-pct="50">50%</button>
+                <button type="button" class="stake-chip-btn" data-pct="66">66%</button>
+                <button type="button" class="stake-chip-btn" data-pct="75">75%</button>
+                <button type="button" class="stake-chip-btn" data-pct="100">100%</button>
+                <button type="button" class="stake-chip-btn" data-pct="150">150%</button>
+              </div>
+            </div>
+            <div class="mdf-result" id="mdfResult">
+              <span class="mdf-label">最低防守频率</span>
+              <span class="mdf-value" id="mdfValue">60.24%</span>
+            </div>
+            <p class="tool-foot" id="mdfExplain">底池 100，对手下注 66 → 需防守 60.2% 的范围。</p>
+          </article>
+
+          <article class="tool-card tool-equity" id="toolEquity">
+            <h3 class="tool-title">手牌胜率计算器</h3>
+            <p class="tool-hint">手牌模式点选具体两张牌（含花色）；范围模式用矩阵或文本。公共牌可选 0–5 张。模拟持续进行直到手动暂停，上限 1000 万次。</p>
+
+            <div class="equity-board-row">
+              <div class="tool-field tool-field-wide">
+                <span>公共牌 <em class="muted-inline">（可选，留空 = 翻前）</em></span>
+                <div class="eq-board-display" id="eqBoardDisplay"></div>
+                <button type="button" class="btn ghost eq-pick-btn" id="eqPickBoard">选公共牌</button>
+              </div>
+            </div>
+
+            <div class="equity-players">
+              <div class="equity-side" data-side="1">
+                <div class="equity-side-head">
+                  <span class="equity-side-name p1">玩家 1</span>
+                  <div class="equity-mode" role="group">
+                    <label><input type="radio" name="eq-mode-1" value="hand" checked /> 手牌</label>
+                    <label><input type="radio" name="eq-mode-1" value="range" /> 范围</label>
+                  </div>
+                </div>
+                <div class="eq-hand-ui" id="eqHandUi1">
+                  <div class="eq-hand-slots" id="eqHandSlots1"></div>
+                  <button type="button" class="btn ghost eq-pick-btn" data-pick-hand="1">选手牌</button>
+                </div>
+                <div class="eq-range-ui" id="eqRangeUi1" hidden>
+                  <input type="text" id="eqPlayer1" class="path-input eq-range-input" spellcheck="false" placeholder="22+,AKs,AQo+" />
+                  <div class="hand-matrix" id="eqMatrix1"></div>
+                </div>
+              </div>
+              <div class="equity-side" data-side="2">
+                <div class="equity-side-head">
+                  <span class="equity-side-name p2">玩家 2</span>
+                  <div class="equity-mode" role="group">
+                    <label><input type="radio" name="eq-mode-2" value="hand" checked /> 手牌</label>
+                    <label><input type="radio" name="eq-mode-2" value="range" /> 范围</label>
+                  </div>
+                </div>
+                <div class="eq-hand-ui" id="eqHandUi2">
+                  <div class="eq-hand-slots" id="eqHandSlots2"></div>
+                  <button type="button" class="btn ghost eq-pick-btn" data-pick-hand="2">选手牌</button>
+                </div>
+                <div class="eq-range-ui" id="eqRangeUi2" hidden>
+                  <input type="text" id="eqPlayer2" class="path-input eq-range-input" spellcheck="false" placeholder="QQ+,AKo" />
+                  <div class="hand-matrix" id="eqMatrix2"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="equity-actions">
+              <button type="button" class="btn" id="eqCalcBtn">开始模拟</button>
+              <button type="button" class="btn ghost" id="eqSwapBtn">交换双方</button>
+              <button type="button" class="btn ghost" id="eqClearBtn">清空</button>
+            </div>
+
+            <p class="tool-status" id="eqStatus" hidden></p>
+
+            <div class="equity-result" id="eqResult" hidden>
+              <div class="equity-bar">
+                <div class="equity-bar-p1" id="eqBarP1"></div>
+                <div class="equity-bar-tie" id="eqBarTie"></div>
+                <div class="equity-bar-p2" id="eqBarP2"></div>
+              </div>
+              <div class="equity-pcts">
+                <div class="equity-pct p1">
+                  <span class="eq-pct-label">玩家 1</span>
+                  <span class="eq-pct-value" id="eqPct1">—</span>
+                </div>
+                <div class="equity-pct tie">
+                  <span class="eq-pct-label">平局</span>
+                  <span class="eq-pct-value" id="eqPctTie">—</span>
+                </div>
+                <div class="equity-pct p2">
+                  <span class="eq-pct-label">玩家 2</span>
+                  <span class="eq-pct-value" id="eqPct2">—</span>
+                </div>
+              </div>
+              <p class="tool-foot" id="eqMeta"></p>
+            </div>
+          </article>
+        </div>
       </section>
     </main>
   </div>
@@ -260,7 +375,23 @@
     </div>
   </div>
 
+  <div class="card-picker-overlay" id="cardPickerOverlay" hidden>
+    <div class="card-picker-modal" role="dialog" aria-modal="true" aria-labelledby="cardPickerTitle">
+      <div class="card-picker-head">
+        <h3 id="cardPickerTitle">选牌</h3>
+        <button type="button" class="replay-close" id="cardPickerClose" aria-label="关闭">×</button>
+      </div>
+      <p class="card-picker-hint" id="cardPickerHint">点击选择两张手牌</p>
+      <div class="card-picker-grid" id="cardPickerGrid"></div>
+      <div class="card-picker-foot" id="cardPickerFoot" hidden>
+        <button type="button" class="btn ghost" id="cardPickerClear">清空</button>
+        <button type="button" class="btn" id="cardPickerDone">完成</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/js/replay.js"></script>
+  <script src="/static/js/tools.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>
