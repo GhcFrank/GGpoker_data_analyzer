@@ -25,7 +25,10 @@ def main() -> int:
         initial = initial.parent
 
     try:
-        chosen = _pick_tk(initial)
+        try:
+            chosen = _pick_tk(initial)
+        except ImportError:
+            chosen = _pick_win32(initial)
     except Exception as exc:  # noqa: BLE001
         out_file.write_text(f"__ERROR__:{exc}", encoding="utf-8")
         return 1
@@ -60,6 +63,34 @@ def _pick_tk(initial: Path) -> str:
     except tk.TclError:
         pass
     return path or ""
+
+
+def _pick_win32(initial: Path) -> str:
+    """Folder dialog for embeddable Python (no tkinter)."""
+    import os
+    import subprocess
+
+    env = os.environ.copy()
+    env["POKER_BROWSE_DIR"] = str(initial)
+    ps = (
+        "Add-Type -AssemblyName System.Windows.Forms; "
+        "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
+        "$d.Description = '选择牌谱数据目录'; "
+        "$d.ShowNewFolderButton = $true; "
+        "if ($env:POKER_BROWSE_DIR) { $d.SelectedPath = $env:POKER_BROWSE_DIR }; "
+        "if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { "
+        "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false; "
+        "[Console]::Out.Write($d.SelectedPath) }"
+    )
+    r = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-STA", "-NonInteractive", "-Command", ps],
+        capture_output=True,
+        env=env,
+    )
+    if r.returncode:
+        err = (r.stderr or b"").decode("utf-8", errors="replace").strip()
+        raise RuntimeError(err or f"powershell exit {r.returncode}")
+    return (r.stdout or b"").decode("utf-8").strip()
 
 
 if __name__ == "__main__":

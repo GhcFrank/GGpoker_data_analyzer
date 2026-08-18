@@ -9,6 +9,9 @@ venv/
 # Poker Analyzer local prefs
 poker_analyzer/local_settings.json
 
+# Extracted portable Python (keep runtime/*.zip in repo)
+runtime/python/
+
 # OS / editor
 .DS_Store
 Thumbs.db
