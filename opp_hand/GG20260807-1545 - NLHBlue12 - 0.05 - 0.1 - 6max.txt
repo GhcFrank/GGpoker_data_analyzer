@@ -1,0 +1,34 @@
+Poker Hand #HD2987072712: Hold'em No Limit ($0.05/$0.1) - 2026/08/07 23:46:04
+Table 'NLHBlue12' 6-max Seat #6 is the button
+Seat 2: 58b14f4 ($10 in chips)
+Seat 6: Hero ($10.05 in chips)
+Hero: posts small blind $0.05
+58b14f4: posts big blind $0.1
+*** HOLE CARDS ***
+Dealt to 58b14f4 
+Dealt to Hero [2h 9h]
+Hero: calls $0.05
+58b14f4: checks
+*** FLOP *** [4d 9c 8h]
+58b14f4: checks
+Hero: bets $0.1
+58b14f4: raises $0.25 to $0.35
+Hero: calls $0.25
+*** TURN *** [4d 9c 8h] [7h]
+58b14f4: checks
+Hero: bets $1
+58b14f4: calls $1
+*** RIVER *** [4d 9c 8h 7h] [6s]
+58b14f4: checks
+Hero: checks
+Hero: shows [2h 9h] (a pair of Nines)
+58b14f4: shows [4h 8d] (two pair, Eights and Fours)
+*** SHOWDOWN ***
+58b14f4 collected $2.76 from pot
+*** SUMMARY ***
+Total pot $2.9 | Rake $0.14 | Jackpot $0 | Bingo $0 | Fortune $0 | Tax $0
+Board [4d 9c 8h 7h 6s]
+Seat 2: 58b14f4 (big blind) showed [4h 8d] and won ($2.76) with two pair, Eights and Fours
+Seat 6: Hero (small blind) showed [2h 9h] and lost with a pair of Nines
+
+

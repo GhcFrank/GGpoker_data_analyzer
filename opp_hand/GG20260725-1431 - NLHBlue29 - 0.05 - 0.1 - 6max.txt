@@ -1,0 +1,93 @@
+Poker Hand #HD2968375826: Hold'em No Limit ($0.05/$0.1) - 2026/07/25 22:53:40
+Table 'NLHBlue29' 6-max Seat #6 is the button
+Seat 1: 81f220f1 ($12.39 in chips)
+Seat 2: 43394af9 ($21.3 in chips)
+Seat 3: 8cad7cad ($11.15 in chips)
+Seat 4: f9ecf262 ($9.68 in chips)
+Seat 5: 8bcfa156 ($10 in chips)
+Seat 6: Hero ($10 in chips)
+81f220f1: posts small blind $0.05
+43394af9: posts big blind $0.1
+*** HOLE CARDS ***
+Dealt to 81f220f1 
+Dealt to 43394af9 
+Dealt to 8cad7cad 
+Dealt to f9ecf262 
+Dealt to 8bcfa156 
+Dealt to Hero [Jh Tc]
+8cad7cad: folds
+f9ecf262: folds
+8bcfa156: folds
+Hero: raises $0.2 to $0.3
+81f220f1: raises $0.9 to $1.2
+43394af9: folds
+Hero: calls $0.9
+*** FLOP *** [5s 6h Td]
+81f220f1: bets $1.25
+Hero: raises $2.5 to $3.75
+81f220f1: calls $2.5
+*** TURN *** [5s 6h Td] [Kd]
+81f220f1: checks
+Hero: checks
+*** RIVER *** [5s 6h Td Kd] [3d]
+81f220f1: bets $6.6
+Hero: calls $5.05 and is all-in
+Uncalled bet ($1.55) returned to 81f220f1
+81f220f1: shows [Kc Ks] (three of a kind, Kings)
+Hero: shows [Jh Tc] (a pair of Tens)
+*** SHOWDOWN ***
+81f220f1 collected $19 from pot
+*** SUMMARY ***
+Total pot $20.1 | Rake $1 | Jackpot $0.1 | Bingo $0 | Fortune $0 | Tax $0
+Board [5s 6h Td Kd 3d]
+Seat 1: 81f220f1 (small blind) showed [Kc Ks] and won ($19) with three of a kind, Kings
+Seat 2: 43394af9 (big blind) folded before Flop
+Seat 3: 8cad7cad folded before Flop (didn't bet)
+Seat 4: f9ecf262 folded before Flop (didn't bet)
+Seat 5: 8bcfa156 folded before Flop (didn't bet)
+Seat 6: Hero (button) showed [Jh Tc] and lost with a pair of Tens
+
+
+Poker Hand #HD2968305004: Hold'em No Limit ($0.05/$0.1) - 2026/07/25 22:46:22
+Table 'NLHBlue29' 6-max Seat #1 is the button
+Seat 1: 8cad7cad ($12.51 in chips)
+Seat 2: 43394af9 ($20.57 in chips)
+Seat 3: Hero ($10 in chips)
+Seat 5: 8bcfa156 ($10 in chips)
+Seat 6: 81f220f1 ($10.4 in chips)
+43394af9: posts small blind $0.05
+Hero: posts big blind $0.1
+*** HOLE CARDS ***
+Dealt to 8cad7cad 
+Dealt to 43394af9 
+Dealt to Hero [Ah 6d]
+Dealt to 8bcfa156 
+Dealt to 81f220f1 
+8bcfa156: folds
+81f220f1: folds
+8cad7cad: raises $0.11 to $0.21
+43394af9: folds
+Hero: calls $0.11
+*** FLOP *** [9s 4h 7d]
+Hero: checks
+8cad7cad: checks
+*** TURN *** [9s 4h 7d] [9d]
+Hero: checks
+8cad7cad: checks
+*** RIVER *** [9s 4h 7d 9d] [3d]
+Hero: checks
+8cad7cad: checks
+Hero: shows [Ah 6d] (a pair of Nines)
+8cad7cad: shows [Jh Kc] (a pair of Nines)
+*** SHOWDOWN ***
+Hero collected $0.45 from pot
+*** SUMMARY ***
+Total pot $0.47 | Rake $0.02 | Jackpot $0 | Bingo $0 | Fortune $0 | Tax $0
+Board [9s 4h 7d 9d 3d]
+Seat 1: 8cad7cad (button) showed [Jh Kc] and lost with a pair of Nines
+Seat 2: 43394af9 (small blind) folded before Flop
+Seat 3: Hero (big blind) showed [Ah 6d] and won ($0.45) with a pair of Nines
+Seat 5: 8bcfa156 folded before Flop (didn't bet)
+Seat 6: 81f220f1 folded before Flop (didn't bet)
+
+

@@ -1,0 +1,141 @@
+Poker Hand #HD2985593875: Hold'em No Limit ($0.05/$0.1) - 2026/08/06 23:00:11
+Table 'NLHBlue109' 6-max Seat #4 is the button
+Seat 1: f0321afc ($18.26 in chips)
+Seat 3: 634b8f95 ($16.39 in chips)
+Seat 4: Hero ($10.67 in chips)
+Seat 5: bbfef089 ($10.92 in chips)
+Seat 6: e17b3df2 ($9.56 in chips)
+bbfef089: posts small blind $0.05
+e17b3df2: posts big blind $0.1
+*** HOLE CARDS ***
+Dealt to f0321afc 
+Dealt to 634b8f95 
+Dealt to Hero [2d Kd]
+Dealt to bbfef089 
+Dealt to e17b3df2 
+f0321afc: folds
+634b8f95: folds
+Hero: raises $0.15 to $0.25
+bbfef089: folds
+e17b3df2: calls $0.15
+*** FLOP *** [Qh 2s 3c]
+e17b3df2: checks
+Hero: checks
+*** TURN *** [Qh 2s 3c] [8c]
+e17b3df2: checks
+Hero: checks
+*** RIVER *** [Qh 2s 3c 8c] [4d]
+e17b3df2: checks
+Hero: checks
+e17b3df2: shows [9s Ts] (Queen high)
+Hero: shows [2d Kd] (a pair of Twos)
+*** SHOWDOWN ***
+Hero collected $0.53 from pot
+*** SUMMARY ***
+Total pot $0.55 | Rake $0.02 | Jackpot $0 | Bingo $0 | Fortune $0 | Tax $0
+Board [Qh 2s 3c 8c 4d]
+Seat 1: f0321afc folded before Flop (didn't bet)
+Seat 3: 634b8f95 folded before Flop (didn't bet)
+Seat 4: Hero (button) showed [2d Kd] and won ($0.53) with a pair of Twos
+Seat 5: bbfef089 (small blind) folded before Flop
+Seat 6: e17b3df2 (big blind) showed [9s Ts] and lost with Queen high
+
+
+Poker Hand #HD2985592802: Hold'em No Limit ($0.05/$0.1) - 2026/08/06 22:52:59
+Table 'NLHBlue109' 6-max Seat #6 is the button
+Seat 1: f0321afc ($19.31 in chips)
+Seat 2: 6f735d45 ($12.56 in chips)
+Seat 3: 634b8f95 ($10.21 in chips)
+Seat 5: Hero ($1.54 in chips)
+Seat 6: 517ded17 ($9.8 in chips)
+f0321afc: posts small blind $0.05
+6f735d45: posts big blind $0.1
+*** HOLE CARDS ***
+Dealt to f0321afc 
+Dealt to 6f735d45 
+Dealt to 634b8f95 
+Dealt to Hero [3s 2c]
+Dealt to 517ded17 
+634b8f95: raises $0.15 to $0.25
+Hero: calls $0.25
+517ded17: raises $0.95 to $1.2
+f0321afc: folds
+6f735d45: folds
+634b8f95: calls $0.95
+Hero: raises $0.34 to $1.54 and is all-in
+517ded17: calls $0.34
+634b8f95: calls $0.34
+*** FLOP *** [6c Tc Qh]
+634b8f95: bets $1.58
+517ded17: calls $1.58
+*** TURN *** [6c Tc Qh] [5h]
+634b8f95: bets $2.62
+517ded17: calls $2.62
+*** RIVER *** [6c Tc Qh 5h] [7h]
+634b8f95: checks
+517ded17: checks
+634b8f95: shows [Ah Td] (a pair of Tens)
+Hero: shows [3s 2c] (Queen high)
+517ded17: shows [5c Ac] (a pair of Fives)
+*** SHOWDOWN ***
+634b8f95 collected $4.54 from pot
+634b8f95 collected $7.89 from pot
+*** SUMMARY ***
+Total pot $13.17 | Rake $0.64 | Jackpot $0.1 | Bingo $0 | Fortune $0 | Tax $0
+Board [6c Tc Qh 5h 7h]
+Seat 1: f0321afc (small blind) folded before Flop
+Seat 2: 6f735d45 (big blind) folded before Flop
+Seat 3: 634b8f95 showed [Ah Td] and won ($12.43) with a pair of Tens
+Seat 5: Hero showed [3s 2c] and lost with Queen high
+Seat 6: 517ded17 (button) showed [5c Ac] and lost with a pair of Fives
+
+
+Poker Hand #HD2985592802: Hold'em No Limit ($0.05/$0.1) - 2026/08/06 22:52:59
+Table 'NLHBlue109' 6-max Seat #6 is the button
+Seat 1: f0321afc ($19.31 in chips)
+Seat 2: 6f735d45 ($12.56 in chips)
+Seat 3: Hero ($10.21 in chips)
+Seat 5: 517ded17 ($1.54 in chips)
+Seat 6: 634b8f95 ($9.8 in chips)
+f0321afc: posts small blind $0.05
+6f735d45: posts big blind $0.1
+*** HOLE CARDS ***
+Dealt to f0321afc 
+Dealt to 6f735d45 
+Dealt to Hero [Ah Td]
+Dealt to 517ded17 
+Dealt to 634b8f95 
+Hero: raises $0.15 to $0.25
+517ded17: calls $0.25
+634b8f95: raises $0.95 to $1.2
+f0321afc: folds
+6f735d45: folds
+Hero: calls $0.95
+517ded17: raises $0.34 to $1.54 and is all-in
+634b8f95: calls $0.34
+Hero: calls $0.34
+*** FLOP *** [6c Tc Qh]
+Hero: bets $1.58
+634b8f95: calls $1.58
+*** TURN *** [6c Tc Qh] [5h]
+Hero: bets $2.62
+634b8f95: calls $2.62
+*** RIVER *** [6c Tc Qh 5h] [7h]
+Hero: checks
+634b8f95: checks
+Hero: shows [Ah Td] (a pair of Tens)
+517ded17: shows [3s 2c] (Queen high)
+634b8f95: shows [5c Ac] (a pair of Fives)
+*** SHOWDOWN ***
+Hero collected $4.54 from pot
+Hero collected $7.89 from pot
+*** SUMMARY ***
+Total pot $13.17 | Rake $0.64 | Jackpot $0.1 | Bingo $0 | Fortune $0 | Tax $0
+Board [6c Tc Qh 5h 7h]
+Seat 1: f0321afc (small blind) folded before Flop
+Seat 2: 6f735d45 (big blind) folded before Flop
+Seat 3: Hero showed [Ah Td] and won ($12.43) with a pair of Tens
+Seat 5: 517ded17 showed [3s 2c] and lost with Queen high
+Seat 6: 634b8f95 (button) showed [5c Ac] and lost with a pair of Fives
+
+

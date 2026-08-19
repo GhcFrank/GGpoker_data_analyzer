@@ -1,0 +1,44 @@
+Poker Hand #HD2949442302: Hold'em No Limit ($0.02/$0.05) - 2026/07/12 18:22:01
+Table 'NLHYellow22' 6-max Seat #1 is the button
+Seat 1: 3c420ebb ($9.06 in chips)
+Seat 2: 8823ccf0 ($5.07 in chips)
+Seat 3: Hero ($7.13 in chips)
+Seat 4: aa10e192 ($5.38 in chips)
+Seat 5: 124d76cc ($5.36 in chips)
+8823ccf0: posts small blind $0.02
+Hero: posts big blind $0.05
+*** HOLE CARDS ***
+Dealt to 3c420ebb 
+Dealt to 8823ccf0 
+Dealt to Hero [6c 4c]
+Dealt to aa10e192 
+Dealt to 124d76cc 
+aa10e192: raises $0.06 to $0.11
+124d76cc: folds
+3c420ebb: folds
+8823ccf0: folds
+Hero: calls $0.06
+*** FLOP *** [Qh 7c 8s]
+Hero: checks
+aa10e192: bets $0.16
+Hero: calls $0.16
+*** TURN *** [Qh 7c 8s] [5h]
+Hero: checks
+aa10e192: checks
+*** RIVER *** [Qh 7c 8s 5h] [Jc]
+Hero: bets $0.31
+aa10e192: calls $0.31
+Hero: shows [6c 4c] (a straight, Eight to Four)
+aa10e192: shows [Js Ts] (a pair of Jacks)
+*** SHOWDOWN ***
+Hero collected $1.13 from pot
+*** SUMMARY ***
+Total pot $1.18 | Rake $0.05 | Jackpot $0 | Bingo $0 | Fortune $0 | Tax $0
+Board [Qh 7c 8s 5h Jc]
+Seat 1: 3c420ebb (button) folded before Flop (didn't bet)
+Seat 2: 8823ccf0 (small blind) folded before Flop
+Seat 3: Hero (big blind) showed [6c 4c] and won ($1.13) with a straight, Eight to Four
+Seat 4: aa10e192 showed [Js Ts] and lost with a pair of Jacks
+Seat 5: 124d76cc folded before Flop (didn't bet)
+
+

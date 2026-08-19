@@ -1,0 +1,51 @@
+Poker Hand #HD2959469026: Hold'em No Limit ($0.05/$0.1) - 2026/07/19 18:59:28
+Table 'NLHBlue11' 6-max Seat #6 is the button
+Seat 1: Hero ($15.37 in chips)
+Seat 2: 96e7bfe6 ($10 in chips)
+Seat 3: d884da6f ($28.38 in chips)
+Seat 4: 8614ae51 ($10.15 in chips)
+Seat 5: 35eef654 ($3.49 in chips)
+Seat 6: c5966220 ($9.75 in chips)
+Hero: posts small blind $0.05
+96e7bfe6: posts big blind $0.1
+*** HOLE CARDS ***
+Dealt to Hero [Js Th]
+Dealt to 96e7bfe6 
+Dealt to d884da6f 
+Dealt to 8614ae51 
+Dealt to 35eef654 
+Dealt to c5966220 
+d884da6f: folds
+8614ae51: raises $0.11 to $0.21
+35eef654: calls $0.21
+c5966220: folds
+Hero: calls $0.16
+96e7bfe6: calls $0.11
+*** FLOP *** [Ks Jh 9h]
+Hero: checks
+96e7bfe6: checks
+8614ae51: checks
+35eef654: checks
+*** TURN *** [Ks Jh 9h] [4d]
+Hero: bets $0.35
+96e7bfe6: folds
+8614ae51: calls $0.35
+35eef654: folds
+*** RIVER *** [Ks Jh 9h 4d] [7s]
+Hero: checks
+8614ae51: checks
+Hero: shows [Js Th] (a pair of Jacks)
+8614ae51: shows [Kc Tc] (a pair of Kings)
+*** SHOWDOWN ***
+8614ae51 collected $1.47 from pot
+*** SUMMARY ***
+Total pot $1.54 | Rake $0.07 | Jackpot $0 | Bingo $0 | Fortune $0 | Tax $0
+Board [Ks Jh 9h 4d 7s]
+Seat 1: Hero (small blind) showed [Js Th] and lost with a pair of Jacks
+Seat 2: 96e7bfe6 (big blind) folded on the Turn
+Seat 3: d884da6f folded before Flop (didn't bet)
+Seat 4: 8614ae51 showed [Kc Tc] and won ($1.47) with a pair of Kings
+Seat 5: 35eef654 folded on the Turn
+Seat 6: c5966220 (button) folded before Flop (didn't bet)
+
+

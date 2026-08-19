@@ -1,0 +1,122 @@
+Poker Hand #HD2969771664: Hold'em No Limit ($0.05/$0.1) - 2026/07/26 23:35:20
+Table 'NLHBlue67' 6-max Seat #4 is the button
+Seat 1: 5798efb6 ($10.24 in chips)
+Seat 2: 564bcca6 ($10.9 in chips)
+Seat 3: 214cfc30 ($9.69 in chips)
+Seat 4: Hero ($10 in chips)
+Seat 5: c6f4d137 ($10 in chips)
+c6f4d137: posts small blind $0.05
+5798efb6: posts big blind $0.1
+*** HOLE CARDS ***
+Dealt to 5798efb6 
+Dealt to 564bcca6 
+Dealt to 214cfc30 
+Dealt to Hero [Qs Qh]
+Dealt to c6f4d137 
+564bcca6: raises $0.11 to $0.21
+214cfc30: folds
+Hero: raises $0.29 to $0.5
+c6f4d137: folds
+5798efb6: folds
+564bcca6: raises $1.1 to $1.6
+Hero: calls $1.1
+*** FLOP *** [6h 4d 6s]
+564bcca6: bets $1.11
+Hero: calls $1.11
+*** TURN *** [6h 4d 6s] [8c]
+564bcca6: bets $2.8
+Hero: calls $2.8
+*** RIVER *** [6h 4d 6s 8c] [3d]
+564bcca6: bets $5.39 and is all-in
+Hero: calls $4.49 and is all-in
+Uncalled bet ($0.9) returned to 564bcca6
+564bcca6: shows [Ks Kd] (two pair, Kings and Sixes)
+Hero: shows [Qs Qh] (two pair, Queens and Sixes)
+*** SHOWDOWN ***
+564bcca6 collected $19.05 from pot
+*** SUMMARY ***
+Total pot $20.15 | Rake $1 | Jackpot $0.1 | Bingo $0 | Fortune $0 | Tax $0
+Board [6h 4d 6s 8c 3d]
+Seat 1: 5798efb6 (big blind) folded before Flop
+Seat 2: 564bcca6 showed [Ks Kd] and won ($19.05) with two pair, Kings and Sixes
+Seat 3: 214cfc30 folded before Flop (didn't bet)
+Seat 4: Hero (button) showed [Qs Qh] and lost with two pair, Queens and Sixes
+Seat 5: c6f4d137 (small blind) folded before Flop
+
+
+Poker Hand #HD2969770962: Hold'em No Limit ($0.05/$0.1) - 2026/07/26 23:30:01
+Table 'NLHBlue67' 6-max Seat #4 is the button
+Seat 1: Hero ($10.51 in chips)
+Seat 2: 5798efb6 ($10.46 in chips)
+Seat 4: edbaa35 ($12.24 in chips)
+Seat 6: 8e3d5b4a ($7.51 in chips)
+8e3d5b4a: posts small blind $0.05
+Hero: posts big blind $0.1
+*** HOLE CARDS ***
+Dealt to Hero [Ac 5c]
+Dealt to 5798efb6 
+Dealt to edbaa35 
+Dealt to 8e3d5b4a 
+5798efb6: raises $0.11 to $0.21
+edbaa35: folds
+8e3d5b4a: raises $0.89 to $1.1
+Hero: raises $1.81 to $2.91
+5798efb6: raises $7.55 to $10.46 and is all-in
+8e3d5b4a: calls $6.41 and is all-in
+Hero: calls $7.55
+5798efb6: shows [Js Jc]
+8e3d5b4a: shows [Kh Kc]
+Hero: shows [Ac 5c]
+*** FLOP *** [6c 5d 4h]
+*** TURN *** [6c 5d 4h] [2c]
+*** RIVER *** [6c 5d 4h 2c] [Ts]
+*** SHOWDOWN ***
+8e3d5b4a collected $21.86 from pot
+5798efb6 collected $5.73 from pot
+*** SUMMARY ***
+Total pot $28.43 | Rake $0.74 | Jackpot $0.1 | Bingo $0 | Fortune $0 | Tax $0
+Board [6c 5d 4h 2c Ts]
+Seat 1: Hero (big blind) showed [Ac 5c] and lost with a pair of Fives
+Seat 2: 5798efb6 showed [Js Jc] and won ($5.73) with a pair of Jacks
+Seat 4: edbaa35 (button) folded before Flop (didn't bet)
+Seat 6: 8e3d5b4a (small blind) showed [Kh Kc] and won ($21.86) with a pair of Kings
+
+
+Poker Hand #HD2969770962: Hold'em No Limit ($0.05/$0.1) - 2026/07/26 23:30:01
+Table 'NLHBlue67' 6-max Seat #4 is the button
+Seat 1: 5798efb6 ($10.51 in chips)
+Seat 2: 8e3d5b4a ($10.46 in chips)
+Seat 4: edbaa35 ($12.24 in chips)
+Seat 6: Hero ($7.51 in chips)
+Hero: posts small blind $0.05
+5798efb6: posts big blind $0.1
+*** HOLE CARDS ***
+Dealt to 5798efb6 
+Dealt to 8e3d5b4a 
+Dealt to edbaa35 
+Dealt to Hero [Kh Kc]
+8e3d5b4a: raises $0.11 to $0.21
+edbaa35: folds
+Hero: raises $0.89 to $1.1
+5798efb6: raises $1.81 to $2.91
+8e3d5b4a: raises $7.55 to $10.46 and is all-in
+Hero: calls $6.41 and is all-in
+5798efb6: calls $7.55
+8e3d5b4a: shows [Js Jc]
+Hero: shows [Kh Kc]
+5798efb6: shows [Ac 5c]
+*** FLOP *** [6c 5d 4h]
+*** TURN *** [6c 5d 4h] [2c]
+*** RIVER *** [6c 5d 4h 2c] [Ts]
+*** SHOWDOWN ***
+Hero collected $21.86 from pot
+8e3d5b4a collected $5.73 from pot
+*** SUMMARY ***
+Total pot $28.43 | Rake $0.74 | Jackpot $0.1 | Bingo $0 | Fortune $0 | Tax $0
+Board [6c 5d 4h 2c Ts]
+Seat 1: 5798efb6 (big blind) showed [Ac 5c] and lost with a pair of Fives
+Seat 2: 8e3d5b4a showed [Js Jc] and won ($5.73) with a pair of Jacks
+Seat 4: edbaa35 (button) folded before Flop (didn't bet)
+Seat 6: Hero (small blind) showed [Kh Kc] and won ($21.86) with a pair of Kings
+
+

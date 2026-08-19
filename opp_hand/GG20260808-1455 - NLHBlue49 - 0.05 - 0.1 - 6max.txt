@@ -1,0 +1,41 @@
+Poker Hand #HD2988481298: Hold'em No Limit ($0.05/$0.1) - 2026/08/08 23:19:24
+Table 'NLHBlue49' 6-max Seat #6 is the button
+Seat 1: c71d2988 ($10.05 in chips)
+Seat 2: 89caab45 ($10.79 in chips)
+Seat 5: Hero ($10.22 in chips)
+Seat 6: fc8b258a ($11.3 in chips)
+c71d2988: posts small blind $0.05
+89caab45: posts big blind $0.1
+*** HOLE CARDS ***
+Dealt to c71d2988 
+Dealt to 89caab45 
+Dealt to Hero [Ac Tc]
+Dealt to fc8b258a 
+Hero: raises $0.15 to $0.25
+fc8b258a: folds
+c71d2988: raises $0.75 to $1
+89caab45: folds
+Hero: calls $0.75
+*** FLOP *** [Kh 8c Ts]
+c71d2988: bets $0.7
+Hero: calls $0.7
+*** TURN *** [Kh 8c Ts] [9c]
+c71d2988: checks
+Hero: checks
+*** RIVER *** [Kh 8c Ts 9c] [7d]
+c71d2988: checks
+Hero: checks
+c71d2988: shows [Ad Td] (a pair of Tens)
+Hero: shows [Ac Tc] (a pair of Tens)
+*** SHOWDOWN ***
+c71d2988 collected $1.62 from pot
+Hero collected $1.62 from pot
+*** SUMMARY ***
+Total pot $3.5 | Rake $0.16 | Jackpot $0.1 | Bingo $0 | Fortune $0 | Tax $0
+Board [Kh 8c Ts 9c 7d]
+Seat 1: c71d2988 (small blind) showed [Ad Td] and won ($1.62) with a pair of Tens
+Seat 2: 89caab45 (big blind) folded before Flop
+Seat 5: Hero showed [Ac Tc] and won ($1.62) with a pair of Tens
+Seat 6: fc8b258a (button) folded before Flop (didn't bet)
+
+

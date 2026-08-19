@@ -1,0 +1,45 @@
+Poker Hand #HD2989870498: Hold'em No Limit ($0.05/$0.1) - 2026/08/09 22:55:35
+Table 'NLHBlue60' 6-max Seat #6 is the button
+Seat 1: Hero ($22.86 in chips)
+Seat 2: 6991088f ($10 in chips)
+Seat 3: da68cc95 ($17.3 in chips)
+Seat 5: 2bb01605 ($10 in chips)
+Seat 6: f1cf1a4a ($10 in chips)
+Hero: posts small blind $0.05
+6991088f: posts big blind $0.1
+*** HOLE CARDS ***
+Dealt to Hero [7s 8s]
+Dealt to 6991088f 
+Dealt to da68cc95 
+Dealt to 2bb01605 
+Dealt to f1cf1a4a 
+da68cc95: folds
+2bb01605: folds
+f1cf1a4a: folds
+Hero: raises $0.2 to $0.3
+6991088f: calls $0.2
+*** FLOP *** [As 4d 6s]
+Hero: checks
+6991088f: bets $0.2
+Hero: raises $0.75 to $0.95
+6991088f: calls $0.75
+*** TURN *** [As 4d 6s] [3s]
+Hero: bets $0.65
+6991088f: calls $0.65
+*** RIVER *** [As 4d 6s 3s] [Tc]
+Hero: bets $4
+6991088f: calls $4
+Hero: shows [7s 8s] (a flush Ace high)
+6991088f: shows [Qs Ts] (a flush Ace high)
+*** SHOWDOWN ***
+6991088f collected $11.12 from pot
+*** SUMMARY ***
+Total pot $11.8 | Rake $0.58 | Jackpot $0.1 | Bingo $0 | Fortune $0 | Tax $0
+Board [As 4d 6s 3s Tc]
+Seat 1: Hero (small blind) showed [7s 8s] and lost with a flush Ace high
+Seat 2: 6991088f (big blind) showed [Qs Ts] and won ($11.12) with a flush Ace high
+Seat 3: da68cc95 folded before Flop (didn't bet)
+Seat 5: 2bb01605 folded before Flop (didn't bet)
+Seat 6: f1cf1a4a (button) folded before Flop (didn't bet)
+
+
