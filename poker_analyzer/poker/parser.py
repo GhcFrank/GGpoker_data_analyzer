@@ -66,9 +66,9 @@ SEAT_SHOWED_RE = re.compile(
     re.IGNORECASE,
 )
 
-FLOP_LINE_RE = re.compile(r"^\*\*\* FLOP \*\*\* \[(?P<cards>[^\]]+)\]")
-TURN_LINE_RE = re.compile(r"^\*\*\* TURN \*\*\* \[(?P<prev>[^\]]+)\] \[(?P<card>[^\]]+)\]")
-RIVER_LINE_RE = re.compile(r"^\*\*\* RIVER \*\*\* \[(?P<prev>[^\]]+)\] \[(?P<card>[^\]]+)\]")
+FLOP_LINE_RE = re.compile(r"^\*\*\* (?:FIRST |SECOND )?FLOP \*\*\* \[(?P<cards>[^\]]+)\]")
+TURN_LINE_RE = re.compile(r"^\*\*\* (?:FIRST |SECOND )?TURN \*\*\* \[(?P<prev>[^\]]+)\] \[(?P<card>[^\]]+)\]")
+RIVER_LINE_RE = re.compile(r"^\*\*\* (?:FIRST |SECOND )?RIVER \*\*\* \[(?P<prev>[^\]]+)\] \[(?P<card>[^\]]+)\]")
 BOARD_SUMMARY_RE = re.compile(r"^Board \[(?P<cards>[^\]]+)\]")
 
 
@@ -160,7 +160,9 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
 
         flop_line = FLOP_LINE_RE.match(ln)
         if flop_line:
-            flop_cards = _parse_card_tokens(flop_line.group("cards"))
+            parsed = _parse_card_tokens(flop_line.group("cards"))
+            if not flop_cards:
+                flop_cards = parsed
             went_to_flop = True
             reset_street_contrib()
             street = "flop"
