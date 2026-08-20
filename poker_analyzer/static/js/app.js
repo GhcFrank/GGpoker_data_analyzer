@@ -636,6 +636,7 @@
   }
 
   function applySummary(data) {
+    const prevDir = state.summary?.data_dir_resolved;
     state.summary = data;
     if (data.data_dir) {
       $("#dataDirInput").value = data.data_dir;
@@ -648,6 +649,15 @@
     if (data.error) {
       $("#summaryText").textContent = `目录无法读取: ${data.error}`;
       setupFilter(data);
+      return data;
+    }
+    const dirChanged = prevDir && prevDir !== data.data_dir_resolved;
+    if (!data.loaded) {
+      const files = data.file_count || 0;
+      $("#summaryText").textContent = files
+        ? `尚未加载牌谱 · 目录中有 ${files} 个 .txt 文件 · 设置筛选后点击「分析」`
+        : "尚未加载牌谱 · 设置筛选后点击「分析」";
+      if (!state.filterDefaults || dirChanged) setupFilter(data);
       return data;
     }
     const range =
@@ -663,6 +673,28 @@
   async function loadSummary() {
     const data = await fetchJSON("/api/summary");
     return applySummary(data);
+  }
+
+  async function ensureDataLoaded() {
+    if (state.summary?.loaded) return state.summary;
+    const saved = readFilter();
+    $("#filterStatus").textContent = "正在加载并解析牌谱…";
+    const data = await fetchJSON("/api/load", { method: "POST" });
+    if (data.error) throw new Error(data.error);
+    applySummary(data);
+    if (saved.date_from) $("#dateFrom").value = saved.date_from;
+    if (saved.date_to) $("#dateTo").value = saved.date_to;
+    if (saved.stakes.length) {
+      for (const input of document.querySelectorAll("#stakesGroup input[type=checkbox]")) {
+        input.checked = saved.stakes.includes(input.value);
+      }
+    }
+    if (saved.game_types.length) {
+      for (const input of document.querySelectorAll("#gameTypeGroup input[type=checkbox]")) {
+        input.checked = saved.game_types.includes(input.value);
+      }
+    }
+    return data;
   }
 
   async function applyDataDir() {
@@ -682,6 +714,7 @@
         body: JSON.stringify({ path }),
       });
       if (result.summary) {
+        state.filterDefaults = null;
         applySummary(result.summary);
       } else {
         $("#dataDirInput").value = result.data_dir || path;
@@ -691,9 +724,6 @@
       }
       state.analyzed = false;
       $("#filterStatus").textContent = "数据目录已更新，请点击「分析」。";
-      if (result.summary && result.summary.hand_count >= 0) {
-        await analyze();
-      }
     } catch (err) {
       $("#dataDirStatus").textContent = `切换失败: ${err.message}`;
       console.error(err);
@@ -771,7 +801,7 @@
   }
 
   async function analyze() {
-    const filter = readFilter();
+    let filter = readFilter();
     if (!filter.game_types.length) {
       $("#filterStatus").textContent = "请至少选择一种游戏类型。";
       return;
@@ -784,9 +814,12 @@
     const btn = $("#analyzeBtn");
     btn.disabled = true;
     btn.textContent = "分析中…";
-    $("#filterStatus").textContent = "正在按筛选条件计算…";
 
     try {
+      await ensureDataLoaded();
+      filter = readFilter();
+      $("#filterStatus").textContent = "正在按筛选条件计算…";
+
       for (const def of panelDefs) {
         if (!state.open.has(def.id) || !def.live) continue;
         if (def.id === "profit_curve") {
@@ -1143,6 +1176,7 @@
 
     $("#reloadBtn").addEventListener("click", async () => {
       await fetchJSON("/api/reload", { method: "POST" });
+      state.filterDefaults = null;
       await loadSummary();
       state.analyzed = false;
       $("#filterStatus").textContent = "数据已重新扫描，请再次点击「分析」。";
@@ -1166,8 +1200,6 @@
         }));
       });
     }
-
-    await analyze();
   }
 
   init().catch((err) => {

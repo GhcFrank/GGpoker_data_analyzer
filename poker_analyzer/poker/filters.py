@@ -174,6 +174,24 @@ def available_game_types(hands: Iterable[Hand]) -> list[str]:
     return [gid for gid, _ in PRESET_GAME_TYPES if gid in found]
 
 
+def empty_filter_options() -> dict[str, Any]:
+    """Preset filter UI before any hand histories are loaded."""
+    return {
+        "date_from": None,
+        "date_to": None,
+        "stakes_presets": [
+            {"id": s, "label": s.replace("/", "-"), "has_data": False}
+            for s in PRESET_STAKES
+        ],
+        "stakes_in_data": [],
+        "game_types_presets": [
+            {"id": gid, "label": label, "has_data": False}
+            for gid, label in PRESET_GAME_TYPES
+        ],
+        "game_types_in_data": [],
+    }
+
+
 def filter_options(dataset: HandDataset) -> dict[str, Any]:
     hands = dataset.sorted_hands()
     present = available_stakes(hands)

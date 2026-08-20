@@ -32,14 +32,43 @@ class AnalysisService:
         return self._dataset
 
     @property
+    def is_loaded(self) -> bool:
+        return self._dataset is not None
+
+    @property
     def dataset(self) -> HandDataset:
         if self._dataset is None:
             self.reload()
         assert self._dataset is not None
         return self._dataset
 
+    def _count_source_files(self) -> int:
+        if not self.data_dir.exists():
+            return 0
+        return sum(1 for p in self.data_dir.glob("*.txt") if p.is_file())
+
+    def dir_info(self) -> dict[str, Any]:
+        from poker.filters import empty_filter_options
+
+        return {
+            "data_dir": format_data_dir(self.data_dir),
+            "data_dir_resolved": str(self.data_dir),
+            "source": None,
+            "hand_count": 0,
+            "file_count": self._count_source_files(),
+            "date_range": {"start": None, "end": None},
+            "filter": empty_filter_options(),
+            "metrics": list_metrics(),
+            "loaded": False,
+        }
+
+    def ensure_loaded(self) -> HandDataset:
+        return self.dataset
+
     def summary(self) -> dict[str, Any]:
-        ds = self.dataset
+        if self._dataset is None:
+            return self.dir_info()
+        ds = self._dataset
         return {
             "data_dir": format_data_dir(self.data_dir),
             "data_dir_resolved": str(self.data_dir),
@@ -52,6 +81,7 @@ class AnalysisService:
             },
             "filter": filter_options(ds),
             "metrics": list_metrics(),
+            "loaded": True,
         }
 
     def filtered_dataset(self, spec: FilterSpec | None = None) -> HandDataset:

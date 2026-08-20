@@ -75,34 +75,18 @@ def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tupl
         try:
             return _json_bytes(svc.summary())
         except FileNotFoundError as exc:
-            from poker.filters import PRESET_GAME_TYPES, PRESET_STAKES
+            payload = svc.dir_info()
+            payload["error"] = str(exc)
+            return _json_bytes(payload)
 
-            return _json_bytes(
-                {
-                    "data_dir": format_data_dir(svc.data_dir),
-                    "data_dir_resolved": str(svc.data_dir),
-                    "source": None,
-                    "hand_count": 0,
-                    "file_count": 0,
-                    "date_range": {"start": None, "end": None},
-                    "filter": {
-                        "date_from": None,
-                        "date_to": None,
-                        "stakes_presets": [
-                            {"id": s, "label": s.replace("/", "-"), "has_data": False}
-                            for s in PRESET_STAKES
-                        ],
-                        "stakes_in_data": [],
-                        "game_types_presets": [
-                            {"id": gid, "label": label, "has_data": False}
-                            for gid, label in PRESET_GAME_TYPES
-                        ],
-                        "game_types_in_data": [],
-                    },
-                    "metrics": [],
-                    "error": str(exc),
-                }
-            )
+    if path == "/api/load" and method == "POST":
+        try:
+            svc.ensure_loaded()
+            return _json_bytes(svc.summary())
+        except FileNotFoundError as exc:
+            payload = svc.dir_info()
+            payload["error"] = str(exc)
+            return _json_bytes(payload, status=HTTPStatus.BAD_REQUEST)
 
     if path == "/api/reload" and method == "POST":
         svc.reload()
@@ -127,7 +111,6 @@ def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tupl
             return _error(f"目录不存在: {target}", HTTPStatus.BAD_REQUEST)
         svc.set_data_dir(target)
         try:
-            svc.reload()
             summary = svc.summary()
         except Exception as exc:  # noqa: BLE001 — surface load errors to UI
             return _json_bytes(
@@ -136,7 +119,7 @@ def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tupl
                     "data_dir": format_data_dir(svc.data_dir),
                     "data_dir_resolved": str(svc.data_dir),
                     "warning": str(exc),
-                    "summary": None,
+                    "summary": svc.dir_info(),
                 }
             )
         return _json_bytes(
@@ -160,7 +143,9 @@ def _handle_api(method: str, path: str, handler: BaseHTTPRequestHandler) -> tupl
         return _json_bytes(browse_job_status())
 
     if path == "/api/metrics" and method == "GET":
-        return _json_bytes({"metrics": svc.summary().get("metrics", [])})
+        from poker.metrics.base import list_metrics
+
+        return _json_bytes({"metrics": list_metrics()})
 
     metric_match = re.fullmatch(r"/api/metrics/([^/]+)", path)
     if metric_match:
