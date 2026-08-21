@@ -736,6 +736,11 @@ h1 {
   color: #e07a5f;
 }
 
+.pf-r-5b,
+.pf-leg-5b {
+  color: #c77dbb;
+}
+
 .pf-matrix-table .pf-matrix-n {
   display: block;
   margin-top: 3px;

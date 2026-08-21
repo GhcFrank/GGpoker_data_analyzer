@@ -10,7 +10,7 @@ from poker.models import Action, Hand, HandDataset
 
 HERO = "Hero"
 POSITION_ORDER = ("UTG", "HJ", "CO", "BTN", "SB", "BB")
-ACTIONS_IMPLEMENTED = frozenset({"open_raise", "3bet", "4bet", "5bet", "3bet_matrix"})
+ACTIONS_IMPLEMENTED = frozenset({"open_raise", "3bet", "4bet", "5bet", "3bet_matrix", "4bet_matrix"})
 
 
 def _seat_order_clockwise(seats: Iterable[int], start_seat: int) -> list[int]:
@@ -414,6 +414,73 @@ def extract_3bet_matrix_spot(hand: Hand) -> ThreeBetMatrixSpot | None:
 
 
 @dataclass
+class FourBetMatrixSpot:
+    four_pos: str
+    three_pos: str
+    three_fold: bool
+    three_call: bool
+    three_5bet: bool
+    three_faced: bool
+    call_combo: str | None
+    fivebet_combo: str | None
+
+
+def extract_4bet_matrix_spot(hand: Hand) -> FourBetMatrixSpot | None:
+    """Any open → 3bet → 4bet spot; tracks 3bettor fold/call/5bet and known combos."""
+    bb = _bb_size(hand)
+    if bb is None:
+        return None
+    pos = position_map(hand)
+    raises = iter_preflop_opensize_raises(hand, bb)
+    if len(raises) < 3:
+        return None
+    _three_idx, three_act = raises[1]
+    four_idx, four_act = raises[2]
+    three_pos = pos.get(three_act.player)
+    four_pos = pos.get(four_act.player)
+    if three_pos not in POSITION_ORDER or four_pos not in POSITION_ORDER:
+        return None
+    if three_pos == four_pos:
+        return None
+
+    threebettor = three_act.player
+    three_fold = three_call = three_5bet = False
+    three_faced = False
+    raise_before = False
+    street = four_act.street
+    for act in hand.actions[four_idx + 1 :]:
+        if act.street != street:
+            break
+        if act.action in ("show", "muck"):
+            continue
+        if act.player == threebettor and act.action in ("fold", "call", "raise", "bet", "check"):
+            if not raise_before:
+                three_faced = True
+                if act.action == "fold":
+                    three_fold = True
+                elif act.action == "call":
+                    three_call = True
+                elif act.action in ("raise", "bet"):
+                    three_5bet = True
+            break
+        if act.action in ("raise", "bet") and act.player != threebettor:
+            raise_before = True
+
+    call_combo = _combo_or_unknown(hand, threebettor) if three_call else None
+    fivebet_combo = _combo_or_unknown(hand, threebettor) if three_5bet else None
+    return FourBetMatrixSpot(
+        four_pos=four_pos,
+        three_pos=three_pos,
+        three_fold=three_fold,
+        three_call=three_call,
+        three_5bet=three_5bet,
+        three_faced=three_faced,
+        call_combo=call_combo,
+        fivebet_combo=fivebet_combo,
+    )
+
+
+@dataclass
 class FourBetSpot:
     all_fold: bool
     faced_5bet: bool
@@ -579,6 +646,8 @@ class PreflopAnalysisMetric(Metric):
 
         if action == "3bet_matrix":
             return self._compute_3bet_matrix(dataset, allow_limp, allow_call)
+        if action == "4bet_matrix":
+            return self._compute_4bet_matrix(dataset, allow_limp, allow_call)
 
         if hero_pos not in POSITION_ORDER:
             raise ValueError(f"未知位置: {hero_pos}")
@@ -676,6 +745,96 @@ class PreflopAnalysisMetric(Metric):
             "cells": cells,
             "options": {
                 "action": "3bet_matrix",
+                "allow_limp": allow_limp,
+                "allow_call": allow_call,
+            },
+        }
+
+    def _compute_4bet_matrix(
+        self,
+        dataset: HandDataset,
+        allow_limp: bool,
+        allow_call: bool,
+    ) -> dict[str, Any]:
+        positions = list(POSITION_ORDER)
+        buckets: dict[tuple[str, str], dict[str, Any]] = {}
+        for four_pos in positions:
+            for three_pos in positions:
+                if four_pos == three_pos:
+                    continue
+                buckets[(four_pos, three_pos)] = {
+                    "fold": 0,
+                    "call": 0,
+                    "fivebet": 0,
+                    "faced": 0,
+                    "call_labels": [],
+                    "fivebet_labels": [],
+                }
+
+        spot_count = 0
+        for hand in _iter_filtered_hands(dataset, allow_limp, allow_call):
+            spot = extract_4bet_matrix_spot(hand)
+            if spot is None:
+                continue
+            key = (spot.four_pos, spot.three_pos)
+            bucket = buckets.get(key)
+            if bucket is None:
+                continue
+            spot_count += 1
+            if not spot.three_faced:
+                continue
+            bucket["faced"] += 1
+            if spot.three_fold:
+                bucket["fold"] += 1
+            elif spot.three_call:
+                bucket["call"] += 1
+                if spot.call_combo:
+                    bucket["call_labels"].append(spot.call_combo)
+            elif spot.three_5bet:
+                bucket["fivebet"] += 1
+                if spot.fivebet_combo:
+                    bucket["fivebet_labels"].append(spot.fivebet_combo)
+
+        cells: list[dict[str, Any]] = []
+        for four_pos in positions:
+            for three_pos in positions:
+                key = (four_pos, three_pos)
+                bucket = buckets.get(key)
+                if bucket is None:
+                    cells.append(
+                        {
+                            "fourbettor": four_pos,
+                            "threebettor": three_pos,
+                            "valid": False,
+                        }
+                    )
+                    continue
+                faced = bucket["faced"]
+                cells.append(
+                    {
+                        "fourbettor": four_pos,
+                        "threebettor": three_pos,
+                        "valid": True,
+                        "faced": faced,
+                        "fold": _stat(bucket["fold"], faced),
+                        "call": _stat(bucket["call"], faced),
+                        "fivebet": _stat(bucket["fivebet"], faced),
+                        "call_hands": _combo_table(bucket["call_labels"]),
+                        "fivebet_hands": _combo_table(bucket["fivebet_labels"]),
+                        "call_hand_count": len(bucket["call_labels"]),
+                        "fivebet_hand_count": len(bucket["fivebet_labels"]),
+                    }
+                )
+
+        return {
+            "metric_id": self.id,
+            "name": self.name,
+            "action": "4bet_matrix",
+            "positions": positions,
+            "spot_count": spot_count,
+            "cells": cells,
+            "options": {
+                "action": "4bet_matrix",
                 "allow_limp": allow_limp,
                 "allow_call": allow_call,
             },
