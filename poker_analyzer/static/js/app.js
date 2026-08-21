@@ -1,6 +1,7 @@
 (() => {
   const panelDefs = [
     { id: "profit_curve", label: "盈利曲线", live: true },
+    { id: "overview_dashboard", label: "综合数据看板", live: true },
     { id: "when_i_raise", label: "When I Raise", live: true },
     { id: "preflop_analysis", label: "翻前分析", live: true },
     { id: "tools", label: "小工具集合", live: false },
@@ -168,6 +169,13 @@
       const panel = document.getElementById(`panel-${def.id}`);
       if (!panel) continue;
       panel.hidden = !state.open.has(def.id);
+    }
+    const row = $("#row-profit-overview");
+    if (row) {
+      const profitOpen = state.open.has("profit_curve");
+      const overviewOpen = state.open.has("overview_dashboard");
+      row.hidden = !profitOpen && !overviewOpen;
+      row.classList.toggle("single", Number(profitOpen) + Number(overviewOpen) === 1);
     }
   }
 
@@ -890,6 +898,13 @@
             body: JSON.stringify(filter),
           });
           renderProfit(data);
+        } else if (def.id === "overview_dashboard") {
+          const data = await fetchJSON("/api/metrics/overview_dashboard", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(filter),
+          });
+          renderOverviewDashboard(data);
         } else if (def.id === "when_i_raise") {
           await analyzeWhenIRaise();
         } else if (def.id === "preflop_analysis") {
@@ -1379,6 +1394,48 @@
         <span class="value">${fmtPct(reraise.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${reraise.count || 0})</span></span>
       </div>
     `;
+  }
+
+  function overviewFmt(key, stat) {
+    if (!stat || stat.pct == null || !(stat.opportunities > 0)) return "—";
+    return `${Number(stat.pct).toFixed(1)}%`;
+  }
+
+  function overviewCell(key, stat) {
+    const title =
+      stat && stat.opportunities != null
+        ? `${key}: ${stat.count ?? 0}/${stat.opportunities}`
+        : key;
+    return `<div class="overview-cell" title="${title}">
+      <span class="ov-key">${key}</span>
+      <span class="ov-val">${overviewFmt(key, stat)}</span>
+    </div>`;
+  }
+
+  function overviewSection(label, keys, group, colsClass) {
+    const cells = keys.map((k) => overviewCell(k, group && group[k])).join("");
+    return `<div class="overview-section">
+      <p class="overview-section-label">${label}</p>
+      <div class="overview-row ${colsClass || ""}">${cells}</div>
+    </div>`;
+  }
+
+  function renderOverviewDashboard(data) {
+    const grid = $("#overviewGrid");
+    const empty = $("#overviewEmpty");
+    if (!grid) return;
+    if (!data || !data.hand_count) {
+      grid.innerHTML = "";
+      if (empty) empty.hidden = false;
+      return;
+    }
+    if (empty) empty.hidden = true;
+    grid.innerHTML = [
+      overviewSection("PREFLOP", ["VPIP", "PFR", "ATS", "3BET"], data.preflop),
+      overviewSection("FLOP", ["CB", "FCB", "CCB", "RCB"], data.flop),
+      overviewSection("TURN", ["CB", "FCB", "CCB", "RCB"], data.turn),
+      overviewSection("RIVER", ["WT", "WSD", "TAF"], data.river, "cols-3"),
+    ].join("");
   }
 
   function renderProfit(data) {

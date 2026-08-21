@@ -77,24 +77,42 @@
     </section>
 
     <main class="panels" id="panels" hidden>
-      <section
-        class="analysis-panel"
-        id="panel-profit_curve"
-        data-metric="profit_curve"
-        hidden
-      >
-        <div class="panel-head">
-          <div>
-            <h2>盈利曲线</h2>
-            <p class="panel-desc">横坐标为手数，纵坐标为累计盈利；两条折线分别表示费用前（含加回 Rake+Jackpot）与费用后（真实筹码）。</p>
+      <div class="panels-row" id="row-profit-overview">
+        <section
+          class="analysis-panel"
+          id="panel-profit_curve"
+          data-metric="profit_curve"
+          hidden
+        >
+          <div class="panel-head">
+            <div>
+              <h2>盈利曲线</h2>
+              <p class="panel-desc">横坐标为手数，纵坐标为累计盈利；两条折线分别表示费用前（含加回 Rake+Jackpot）与费用后（真实筹码）。</p>
+            </div>
+            <div class="stat-row" id="profitStats"></div>
           </div>
-          <div class="stat-row" id="profitStats"></div>
-        </div>
-        <div class="chart-wrap">
-          <canvas id="profitChart"></canvas>
-        </div>
-        <p class="empty-hint" id="profitEmpty" hidden>当前筛选条件下没有手牌，请调整筛选器后重新分析。</p>
-      </section>
+          <div class="chart-wrap">
+            <canvas id="profitChart"></canvas>
+          </div>
+          <p class="empty-hint" id="profitEmpty" hidden>当前筛选条件下没有手牌，请调整筛选器后重新分析。</p>
+        </section>
+
+        <section
+          class="analysis-panel overview-panel"
+          id="panel-overview_dashboard"
+          data-metric="overview_dashboard"
+          hidden
+        >
+          <div class="panel-head">
+            <div>
+              <h2>综合数据看板</h2>
+              <p class="panel-desc">按 GG Smart HUD 口径，基于上方数据筛选后的手牌统计各街频率。</p>
+            </div>
+          </div>
+          <div class="overview-grid" id="overviewGrid"></div>
+          <p class="empty-hint" id="overviewEmpty" hidden>当前筛选条件下没有手牌。</p>
+        </section>
+      </div>
 
       <section
         class="analysis-panel"
