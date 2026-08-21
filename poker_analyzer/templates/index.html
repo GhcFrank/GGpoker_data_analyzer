@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{ title }}</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=3bet-matrix-3" />
+  <link rel="stylesheet" href="/static/css/style.css?v=load-toast-1" />
   <link rel="stylesheet" href="/static/css/replay.css" />
   <script src="/static/js/chart.umd.min.js"></script>
 </head>
@@ -69,14 +69,14 @@
       <p class="filter-status" id="filterStatus">尚未分析。请点击「分析」。</p>
     </section>
 
-    <section class="panel-toolbar" aria-label="分析面板开关">
+    <section class="panel-toolbar" id="panelToolbar" aria-label="分析面板开关" hidden>
       <p class="toolbar-label">分析面板</p>
       <div class="toggle-group" id="panelToggles">
         <!-- Buttons injected from registered metrics + reserved slots -->
       </div>
     </section>
 
-    <main class="panels" id="panels">
+    <main class="panels" id="panels" hidden>
       <section
         class="analysis-panel"
         id="panel-profit_curve"
@@ -445,6 +445,8 @@
     </main>
   </div>
 
+  <div class="toast-host" id="toastHost" aria-live="polite" aria-atomic="true"></div>
+
   <div class="replay-overlay" id="replayOverlay" hidden>
     <div class="replay-modal" role="dialog" aria-modal="true" aria-labelledby="replayTitle">
       <div class="replay-top">
@@ -484,6 +486,6 @@
 
   <script src="/static/js/replay.js"></script>
   <script src="/static/js/tools.js"></script>
-  <script src="/static/js/app.js?v=3bet-matrix-3"></script>
+  <script src="/static/js/app.js?v=load-toast-1"></script>
 </body>
 </html>

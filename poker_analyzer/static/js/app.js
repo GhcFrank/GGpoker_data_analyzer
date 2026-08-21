@@ -74,6 +74,33 @@
 
   const $ = (sel) => document.querySelector(sel);
 
+  function showToast(title, detail, { type = "ok", ms = 4200 } = {}) {
+    const host = $("#toastHost");
+    if (!host) return;
+    const el = document.createElement("div");
+    el.className = "toast" + (type === "warn" ? " toast-warn" : "");
+    el.innerHTML = `<strong>${title}</strong>${detail || ""}`;
+    host.appendChild(el);
+    window.setTimeout(() => {
+      el.classList.add("toast-out");
+      window.setTimeout(() => el.remove(), 260);
+    }, ms);
+  }
+
+  function setAnalysisVisible(visible) {
+    const toolbar = $("#panelToolbar");
+    const panels = $("#panels");
+    if (toolbar) toolbar.hidden = !visible;
+    if (panels) panels.hidden = !visible;
+  }
+
+  function openLivePanelsIfEmpty() {
+    if (state.open.size) return;
+    for (const def of panelDefs) {
+      if (def.live) state.open.add(def.id);
+    }
+  }
+
   function moneyClass(n) {
     if (n > 0) return "pos";
     if (n < 0) return "neg";
@@ -641,9 +668,12 @@
     };
   }
 
-  function applySummary(data) {
+  function applySummary(data, { announce = false } = {}) {
     const prevDir = state.summary?.data_dir_resolved;
     state.summary = data;
+    const summaryEl = $("#summaryText");
+    summaryEl.classList.remove("is-ok");
+    $("#filterStatus").classList.remove("is-ok", "is-ready");
     if (data.data_dir) {
       $("#dataDirInput").value = data.data_dir;
       const resolved = data.data_dir_resolved || data.data_dir;
@@ -653,32 +683,47 @@
           : `当前: ${data.data_dir}`;
     }
     if (data.error) {
-      $("#summaryText").textContent = `目录无法读取: ${data.error}`;
+      summaryEl.textContent = `目录无法读取: ${data.error}`;
       setupFilter(data);
       return data;
     }
     const dirChanged = prevDir && prevDir !== data.data_dir_resolved;
     if (!data.loaded) {
       const files = data.file_count || 0;
-      $("#summaryText").textContent = files
+      summaryEl.textContent = files
         ? `尚未加载牌谱 · 目录中有 ${files} 个 .txt 文件 · 设置筛选后点击「分析」`
         : "尚未加载牌谱 · 设置筛选后点击「分析」";
       if (!state.filterDefaults || dirChanged) setupFilter(data);
+      if (announce && files) {
+        $("#filterStatus").classList.add("is-ready");
+        $("#filterStatus").textContent =
+          `已就绪：发现 ${files} 个牌谱文件，设置筛选后点击「分析」。`;
+        showToast("数据目录就绪", `发现 ${files} 个 .txt 牌谱，点「分析」开始计算。`, {
+          type: "warn",
+        });
+      }
       return data;
     }
     const range =
       data.date_range?.start && data.date_range?.end
         ? `${data.date_range.start} → ${data.date_range.end}`
         : "无数据";
-    $("#summaryText").textContent =
+    summaryEl.textContent =
       `已加载 ${data.hand_count} 手 · ${data.file_count} 个文件 · ${range}`;
+    summaryEl.classList.add("is-ok");
     setupFilter(data);
+    if (announce) {
+      showToast(
+        "数据集加载成功",
+        `共 ${data.hand_count} 手牌 · ${data.file_count} 个文件 · ${range}`,
+      );
+    }
     return data;
   }
 
-  async function loadSummary() {
+  async function loadSummary(opts) {
     const data = await fetchJSON("/api/summary");
-    return applySummary(data);
+    return applySummary(data, opts);
   }
 
   async function ensureDataLoaded() {
@@ -687,7 +732,7 @@
     $("#filterStatus").textContent = "正在加载并解析牌谱…";
     const data = await fetchJSON("/api/load", { method: "POST" });
     if (data.error) throw new Error(data.error);
-    applySummary(data);
+    applySummary(data, { announce: true });
     if (saved.date_from) $("#dateFrom").value = saved.date_from;
     if (saved.date_to) $("#dateTo").value = saved.date_to;
     if (saved.stakes.length) {
@@ -721,7 +766,7 @@
       });
       if (result.summary) {
         state.filterDefaults = null;
-        applySummary(result.summary);
+        applySummary(result.summary, { announce: true });
       } else {
         $("#dataDirInput").value = result.data_dir || path;
         $("#dataDirStatus").textContent = result.warning
@@ -729,7 +774,12 @@
           : `已切换到: ${result.data_dir}`;
       }
       state.analyzed = false;
+      setAnalysisVisible(false);
+      state.open.clear();
+      renderToggles();
+      syncPanels();
       $("#filterStatus").textContent = "数据目录已更新，请点击「分析」。";
+      $("#filterStatus").classList.add("is-ready");
     } catch (err) {
       $("#dataDirStatus").textContent = `切换失败: ${err.message}`;
       console.error(err);
@@ -826,6 +876,11 @@
       filter = readFilter();
       $("#filterStatus").textContent = "正在按筛选条件计算…";
 
+      openLivePanelsIfEmpty();
+      setAnalysisVisible(true);
+      renderToggles();
+      syncPanels();
+
       for (const def of panelDefs) {
         if (!state.open.has(def.id) || !def.live) continue;
         if (def.id === "profit_curve") {
@@ -850,8 +905,12 @@
       };
       const gameLabel =
         filter.game_types.map((id) => gameTypeLabels[id] || id).join(", ") || "无";
-      $("#filterStatus").textContent =
+      const status = $("#filterStatus");
+      status.classList.remove("is-ready");
+      status.classList.add("is-ok");
+      status.textContent =
         `已分析：${filter.date_from || "?"} ~ ${filter.date_to || "?"} · ${gameLabel} · 级别 ${stakesLabel}`;
+      showToast("分析完成", status.textContent);
     } catch (err) {
       $("#filterStatus").textContent = `分析失败: ${err.message}`;
       console.error(err);
@@ -1448,13 +1507,16 @@
     renderToggles();
     setupWhenIRaiseFilters();
     setupPreflopFilters();
-    await loadSummary();
+    setAnalysisVisible(false);
+    await loadSummary({ announce: true });
     renderToggles();
     syncPanels();
 
     $("#analyzeBtn").addEventListener("click", () => analyze());
     $("#resetFilterBtn").addEventListener("click", () => {
       resetFilter();
+      $("#filterStatus").classList.remove("is-ok");
+      $("#filterStatus").classList.add("is-ready");
       $("#filterStatus").textContent = "已重置为全部数据，点击「分析」生效。";
     });
     $("#browseDirBtn").addEventListener("click", () => browseDataDir());
@@ -1469,8 +1531,13 @@
     $("#reloadBtn").addEventListener("click", async () => {
       await fetchJSON("/api/reload", { method: "POST" });
       state.filterDefaults = null;
-      await loadSummary();
+      await loadSummary({ announce: true });
       state.analyzed = false;
+      setAnalysisVisible(false);
+      state.open.clear();
+      renderToggles();
+      syncPanels();
+      $("#filterStatus").classList.add("is-ready");
       $("#filterStatus").textContent = "数据已重新扫描，请再次点击「分析」。";
     });
 
