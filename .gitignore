@@ -12,6 +12,11 @@ poker_analyzer/local_settings.json
 # Extracted portable Python (keep runtime/*.zip in repo)
 runtime/python/
 
+# Cash hand dumps (keep unzip script)
+public_cash_hand_zip/*
+!public_cash_hand_zip/unzip_all.bat
+public_cash_hand/
+
 # OS / editor
 .DS_Store
 Thumbs.db

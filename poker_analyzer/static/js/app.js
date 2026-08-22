@@ -7,15 +7,65 @@
     { id: "tools", label: "小工具集合", live: false },
   ];
 
-  const pfPositionOpts = [
-    { id: "UTG", label: "UTG" },
-    { id: "HJ", label: "HJ" },
-    { id: "CO", label: "CO" },
-    { id: "BTN", label: "BTN" },
-    { id: "SB", label: "SB" },
-    { id: "BB", label: "BB" },
-  ];
-  const pfPositionOrder = pfPositionOpts.map((o) => o.id);
+  const TABLE_FORMAT_CONFIG = {
+    "6max": {
+      label: "6-max",
+      preflopMetricId: "preflop_analysis",
+      replaySource: "preflop_analysis",
+      defaultHero: "BTN",
+      positions: [
+        { id: "UTG", label: "UTG" },
+        { id: "HJ", label: "HJ" },
+        { id: "CO", label: "CO" },
+        { id: "BTN", label: "BTN" },
+        { id: "SB", label: "SB" },
+        { id: "BB", label: "BB" },
+      ],
+    },
+    "9max": {
+      label: "9-max",
+      preflopMetricId: "preflop_analysis_9max",
+      replaySource: "preflop_analysis_9max",
+      defaultHero: "CO",
+      positions: [
+        { id: "UTG", label: "UTG" },
+        { id: "UTG+1", label: "UTG+1" },
+        { id: "UTG+2", label: "UTG+2" },
+        { id: "LJ", label: "LJ" },
+        { id: "HJ", label: "HJ" },
+        { id: "CO", label: "CO" },
+        { id: "BTN", label: "BTN" },
+        { id: "SB", label: "SB" },
+        { id: "BB", label: "BB" },
+      ],
+    },
+  };
+
+  function selectedTableFormat() {
+    const el = document.querySelector("#tableFormatGroup input:checked");
+    return el ? el.value : "";
+  }
+
+  function currentPfConfig() {
+    return TABLE_FORMAT_CONFIG[selectedTableFormat()] || TABLE_FORMAT_CONFIG["6max"];
+  }
+
+  function pfPositionOpts() {
+    return currentPfConfig().positions;
+  }
+
+  function pfPositionOrder() {
+    return pfPositionOpts().map((o) => o.id);
+  }
+
+  function preflopMetricId() {
+    return currentPfConfig().preflopMetricId;
+  }
+
+  function preflopReplaySource() {
+    return currentPfConfig().replaySource;
+  }
+
   const pfActionOpts = [
     { id: "open_raise", label: "Open Raise" },
     { id: "3bet", label: "3bet" },
@@ -269,11 +319,7 @@
   }
 
   function setupPreflopFilters() {
-    fillChipGroup($("#pfHeroPosGroup"), pfPositionOpts, {
-      multi: false,
-      name: "pf-hero-pos",
-      checkedIds: new Set(["BTN"]),
-    });
+    refreshPreflopPositionUI();
     fillChipGroup($("#pfActionGroup"), pfActionOpts, {
       multi: false,
       name: "pf-action",
@@ -306,6 +352,16 @@
     });
   }
 
+  function refreshPreflopPositionUI() {
+    const cfg = currentPfConfig();
+    fillChipGroup($("#pfHeroPosGroup"), pfPositionOpts(), {
+      multi: false,
+      name: "pf-hero-pos",
+      checkedIds: new Set([cfg.defaultHero]),
+    });
+    syncPreflopOpenerRow();
+  }
+
   function selectedPreflopHeroPos() {
     const el = document.querySelector("#pfHeroPosGroup input:checked");
     return el ? el.value : "BTN";
@@ -332,14 +388,14 @@
     let villainOpts;
     if (action === "3bet") {
       if (label) label.textContent = "Open 对手";
-      const heroIdx = pfPositionOrder.indexOf(heroPos);
-      villainOpts = pfPositionOpts.filter((_, i) => i < heroIdx);
+      const heroIdx = pfPositionOrder().indexOf(heroPos);
+      villainOpts = pfPositionOpts().filter((_, i) => i < heroIdx);
     } else if (action === "4bet") {
       if (label) label.textContent = "3bet 对手";
-      villainOpts = pfPositionOpts.filter((o) => o.id !== heroPos);
+      villainOpts = pfPositionOpts().filter((o) => o.id !== heroPos);
     } else {
       if (label) label.textContent = "4bet 对手";
-      villainOpts = pfPositionOpts.filter((o) => o.id !== heroPos);
+      villainOpts = pfPositionOpts().filter((o) => o.id !== heroPos);
     }
 
     const prev = document.querySelector("#pfOpenerPosGroup input:checked");
@@ -606,6 +662,56 @@
     return options;
   }
 
+  function onTableFormatChange() {
+    refreshStakesGroup();
+    refreshPreflopPositionUI();
+    state.analyzed = false;
+    $("#filterStatus").classList.remove("is-ok");
+    $("#filterStatus").classList.add("is-ready");
+    $("#filterStatus").textContent = "桌型已变更，请再次点击「分析」。";
+  }
+
+  function renderTableFormatGroup(filter) {
+    const host = $("#tableFormatGroup");
+    if (!host) return;
+    host.innerHTML = "";
+    for (const tf of filter.table_formats_presets || []) {
+      const label = document.createElement("label");
+      label.className = "stake-chip has-data" + (tf.has_data ? "" : " is-hint");
+      label.innerHTML = `
+        <input type="radio" name="table-format" value="${tf.id}" />
+        <span>${tf.label}</span>
+        ${tf.has_data ? "" : '<span class="tag">目录未识别</span>'}
+      `;
+      host.appendChild(label);
+    }
+  }
+
+  function refreshStakesGroup() {
+    const filter = state.summary?.filter || {};
+    const tableFormat = selectedTableFormat();
+    const presets = filter.stakes_presets || [];
+    const inFormat = new Set(
+      (filter.stakes_by_format && tableFormat && filter.stakes_by_format[tableFormat]) || [],
+    );
+    const host = $("#stakesGroup");
+    if (!host) return;
+    host.innerHTML = "";
+    for (const stake of presets) {
+      const hasData = tableFormat
+        ? (inFormat.size ? inFormat.has(stake.id) : stake.has_data)
+        : stake.has_data;
+      const label = document.createElement("label");
+      label.className = "stake-chip" + (hasData ? " has-data" : "");
+      label.innerHTML = `
+        <input type="checkbox" value="${stake.id}" ${hasData ? "checked" : ""} ${hasData ? "" : "disabled"} />
+        <span>${stake.label}</span>
+        ${hasData ? "" : '<span class="tag">无数据</span>'}
+      `;
+      host.appendChild(label);
+    }
+  }
+
   function setupFilter(summary) {
     const filter = summary.filter || {};
     state.filterDefaults = {
@@ -613,6 +719,7 @@
       date_to: filter.date_to || "",
       stakes: (filter.stakes_presets || []).map((s) => s.id),
       game_types: (filter.game_types_presets || []).map((g) => g.id),
+      table_format: "",
     };
 
     const dateFrom = $("#dateFrom");
@@ -623,6 +730,8 @@
     dateTo.max = filter.date_to || "";
     dateFrom.value = state.filterDefaults.date_from;
     dateTo.value = state.filterDefaults.date_to;
+
+    renderTableFormatGroup(filter);
 
     const gameHost = $("#gameTypeGroup");
     gameHost.innerHTML = "";
@@ -637,25 +746,19 @@
       gameHost.appendChild(label);
     }
 
-    const host = $("#stakesGroup");
-    host.innerHTML = "";
-    for (const stake of filter.stakes_presets || []) {
-      const label = document.createElement("label");
-      label.className = "stake-chip" + (stake.has_data ? " has-data" : "");
-      label.innerHTML = `
-        <input type="checkbox" value="${stake.id}" checked />
-        <span>${stake.label}</span>
-        ${stake.has_data ? "" : '<span class="tag">预留</span>'}
-      `;
-      host.appendChild(label);
-    }
+    refreshStakesGroup();
   }
 
   function resetFilter() {
     if (!state.filterDefaults) return;
     $("#dateFrom").value = state.filterDefaults.date_from;
     $("#dateTo").value = state.filterDefaults.date_to;
-    for (const input of document.querySelectorAll("#stakesGroup input[type=checkbox]")) {
+    for (const input of document.querySelectorAll("#tableFormatGroup input[type=radio]")) {
+      input.checked = false;
+    }
+    refreshStakesGroup();
+    refreshPreflopPositionUI();
+    for (const input of document.querySelectorAll("#stakesGroup input[type=checkbox]:not(:disabled)")) {
       input.checked = true;
     }
     for (const input of document.querySelectorAll("#gameTypeGroup input[type=checkbox]")) {
@@ -673,6 +776,7 @@
       date_to: $("#dateTo").value || null,
       stakes,
       game_types,
+      table_format: selectedTableFormat() || null,
     };
   }
 
@@ -751,6 +855,16 @@
     if (saved.game_types.length) {
       for (const input of document.querySelectorAll("#gameTypeGroup input[type=checkbox]")) {
         input.checked = saved.game_types.includes(input.value);
+      }
+    }
+    if (saved.table_format) {
+      const tf = document.querySelector(
+        `#tableFormatGroup input[value="${saved.table_format}"]`,
+      );
+      if (tf && !tf.disabled) {
+        tf.checked = true;
+        refreshStakesGroup();
+        refreshPreflopPositionUI();
       }
     }
     return data;
@@ -866,6 +980,10 @@
 
   async function analyze() {
     let filter = readFilter();
+    if (!filter.table_format) {
+      $("#filterStatus").textContent = "请先选择桌型（6-max 或 9-max）。";
+      return;
+    }
     if (!filter.game_types.length) {
       $("#filterStatus").textContent = "请至少选择一种游戏类型。";
       return;
@@ -920,11 +1038,12 @@
       };
       const gameLabel =
         filter.game_types.map((id) => gameTypeLabels[id] || id).join(", ") || "无";
+      const formatLabel = TABLE_FORMAT_CONFIG[filter.table_format]?.label || filter.table_format;
       const status = $("#filterStatus");
       status.classList.remove("is-ready");
       status.classList.add("is-ok");
       status.textContent =
-        `已分析：${filter.date_from || "?"} ~ ${filter.date_to || "?"} · ${gameLabel} · 级别 ${stakesLabel}`;
+        `已分析：${formatLabel} · ${filter.date_from || "?"} ~ ${filter.date_to || "?"} · ${gameLabel} · 级别 ${stakesLabel}`;
       showToast("分析完成", status.textContent);
     } catch (err) {
       $("#filterStatus").textContent = `分析失败: ${err.message}`;
@@ -948,7 +1067,7 @@
         </div>
       `;
     }
-    const data = await fetchJSON("/api/metrics/preflop_analysis", {
+    const data = await fetchJSON(`/api/metrics/${preflopMetricId()}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...filter, options }),
@@ -975,7 +1094,7 @@
     }
     const detail = $("#preflop3betDetail");
     if (detail) detail.hidden = true;
-    const data = await fetchJSON("/api/metrics/preflop_analysis", {
+    const data = await fetchJSON(`/api/metrics/${preflopMetricId()}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...readFilter(), options: readPreflopMatrixOptions() }),
@@ -1031,7 +1150,11 @@
     const table = $("#preflop3betMatrix");
     const warn = $("#preflop3betWarn");
     if (!table) return;
-    const positions = data.positions || pfPositionOrder;
+    const wrap = table.closest(".pf-matrix-wrap");
+    if (wrap) {
+      wrap.classList.toggle("pf-matrix-9max", selectedTableFormat() === "9max");
+    }
+    const positions = data.positions || pfPositionOrder();
     const cellMap = new Map();
     for (const cell of data.cells || []) {
       cellMap.set(`${cell.threebettor}|${cell.opener}`, cell);
@@ -1128,7 +1251,7 @@
     }
     const detail = $("#preflop4betDetail");
     if (detail) detail.hidden = true;
-    const data = await fetchJSON("/api/metrics/preflop_analysis", {
+    const data = await fetchJSON(`/api/metrics/${preflopMetricId()}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...readFilter(), options: readPreflop4betMatrixOptions() }),
@@ -1164,7 +1287,11 @@
     const table = $("#preflop4betMatrix");
     const warn = $("#preflop4betWarn");
     if (!table) return;
-    const positions = data.positions || pfPositionOrder;
+    const wrap = table.closest(".pf-matrix-wrap");
+    if (wrap) {
+      wrap.classList.toggle("pf-matrix-9max", selectedTableFormat() === "9max");
+    }
+    const positions = data.positions || pfPositionOrder();
     const cellMap = new Map();
     for (const cell of data.cells || []) {
       cellMap.set(`${cell.fourbettor}|${cell.threebettor}`, cell);
@@ -1564,6 +1691,10 @@
     renderToggles();
     setupWhenIRaiseFilters();
     setupPreflopFilters();
+    const tableFormatHost = $("#tableFormatGroup");
+    if (tableFormatHost) {
+      tableFormatHost.addEventListener("change", onTableFormatChange);
+    }
     setAnalysisVisible(false);
     await loadSummary({ announce: true });
     renderToggles();
@@ -1601,9 +1732,9 @@
     const pfReplayBtn = $("#pfReplayBtn");
     if (pfReplayBtn) {
       pfReplayBtn.addEventListener("click", () => {
-        window.PokerReplay.open("preflop_analysis", () => ({
+        window.PokerReplay.open(preflopReplaySource(), () => ({
           filter: readFilter(),
-          options: readPreflopOptions(),
+          options: { ...readPreflopOptions(), table_format: selectedTableFormat() },
         }));
       });
     }

@@ -48,7 +48,7 @@ class AnalysisService:
         return sum(1 for p in self.data_dir.glob("*.txt") if p.is_file())
 
     def dir_info(self) -> dict[str, Any]:
-        from poker.filters import empty_filter_options
+        from poker.filters import filter_options_from_directory
 
         return {
             "data_dir": format_data_dir(self.data_dir),
@@ -57,7 +57,7 @@ class AnalysisService:
             "hand_count": 0,
             "file_count": self._count_source_files(),
             "date_range": {"start": None, "end": None},
-            "filter": empty_filter_options(),
+            "filter": filter_options_from_directory(self.data_dir),
             "metrics": list_metrics(),
             "loaded": False,
         }
@@ -93,10 +93,13 @@ class AnalysisService:
         spec: FilterSpec | None = None,
         options: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        effective = spec or FilterSpec()
+        if not effective.table_format:
+            raise ValueError("请先选择桌型（6-max 或 9-max）")
         metric = get_metric(metric_id)
         filtered = self.filtered_dataset(spec)
         result = metric.compute(filtered, options=options)
-        result["filter"] = (spec or FilterSpec()).to_dict()
+        result["filter"] = effective.to_dict()
         result["filtered_hand_count"] = len(filtered.hands)
         result["total_hand_count"] = len(self.dataset.hands)
         return result
@@ -111,9 +114,12 @@ class AnalysisService:
         from poker.replay import get_replay
 
         filtered = self.filtered_dataset(spec)
+        effective = spec or FilterSpec()
+        if not effective.table_format:
+            raise ValueError("请先选择桌型（6-max 或 9-max）")
         result = get_replay(filtered, source, index, options)
         result["source"] = source
-        result["filter"] = (spec or FilterSpec()).to_dict()
+        result["filter"] = effective.to_dict()
         return result
 
 

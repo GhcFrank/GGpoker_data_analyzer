@@ -6,12 +6,48 @@ from pathlib import Path
 
 from poker.models import Action, Hand
 
-HAND_HEADER_RE = re.compile(
-    r"^Poker Hand #(?P<hand_id>\S+):\s+"
-    r"(?P<game>.+?)\s+"
-    r"\((?P<stakes>[^)]+)\)\s+-\s+"
-    r"(?P<dt>\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})"
-)
+def _extract_trailing_stakes(text: str) -> tuple[str, str] | None:
+    """Split ``game (stakes...)`` where stakes may contain nested ``(...)``."""
+    stripped = text.rstrip()
+    if not stripped.endswith(")"):
+        return None
+    depth = 0
+    start = -1
+    for i in range(len(stripped) - 1, -1, -1):
+        ch = stripped[i]
+        if ch == ")":
+            depth += 1
+        elif ch == "(":
+            depth -= 1
+            if depth == 0:
+                start = i
+                break
+    if start < 0:
+        return None
+    game = stripped[:start].strip()
+    stakes = stripped[start + 1 : -1]
+    return game, stakes
+
+
+def _parse_hand_header(line: str) -> dict[str, str] | None:
+    """Parse GG hand header; supports nested parentheses in stakes (9-max ante)."""
+    prefix = re.match(r"^Poker Hand #(?P<hand_id>\S+):\s+", line)
+    if not prefix:
+        return None
+    tail = line[prefix.end() :]
+    dt_m = re.search(r" - (?P<dt>\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})$", tail)
+    if not dt_m:
+        return None
+    parsed = _extract_trailing_stakes(tail[: dt_m.start()].strip())
+    if not parsed:
+        return None
+    game, stakes = parsed
+    return {
+        "hand_id": prefix.group("hand_id"),
+        "game": game,
+        "stakes": stakes,
+        "dt": dt_m.group("dt"),
+    }
 
 TABLE_RE = re.compile(
     r"^Table '(?P<table>[^']+)'\s+(?P<max>\d+)-max"
@@ -94,14 +130,14 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
     header = None
     for ln in non_empty:
         if ln.startswith("Poker Hand #"):
-            header = HAND_HEADER_RE.match(ln)
+            header = _parse_hand_header(ln)
             break
     if not header:
         return None
 
-    hand_id = header.group("hand_id")
-    stakes = header.group("stakes")
-    dt = datetime.strptime(header.group("dt"), "%Y/%m/%d %H:%M:%S")
+    hand_id = header["hand_id"]
+    stakes = header["stakes"]
+    dt = datetime.strptime(header["dt"], "%Y/%m/%d %H:%M:%S")
 
     table_name = ""
     max_players = 0
@@ -259,7 +295,9 @@ def parse_hand(raw: str, source_file: str = "") -> Hand | None:
             if m:
                 amt = _money(m.group("amount"))
                 pot = round(pot + amt, 6)
-                street_contrib[name] = round(street_contrib.get(name, 0.0) + amt, 6)
+                # Ante is dead money outside betting "to $X" totals (GG 9-max).
+                if "ante" not in act:
+                    street_contrib[name] = round(street_contrib.get(name, 0.0) + amt, 6)
                 actions.append(
                     Action(
                         street=street,

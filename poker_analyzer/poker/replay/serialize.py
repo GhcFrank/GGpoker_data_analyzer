@@ -4,11 +4,10 @@ import re
 from typing import Any
 
 from poker.filters import normalize_stakes
-from poker.metrics.preflop_analysis import position_map
+from poker.positions import get_profile
 from poker.models import Action, Hand
 
 _BOARD_RE = re.compile(r"Board \[([^\]]+)\]")
-_LAYOUT = ("UTG", "HJ", "CO", "BTN", "SB", "BB")
 _ACTION_ZH = {
     "fold": "弃牌",
     "check": "Check",
@@ -63,12 +62,8 @@ def _hole_cards(hand: Hand, name: str) -> list[str]:
     return []
 
 
-def _layout_key(position: str) -> str:
-    if position in _LAYOUT:
-        return position
-    if position.startswith("UTG"):
-        return "UTG"
-    return ""
+def _layout_key(position: str, table_format: str) -> str:
+    return get_profile(table_format).layout_key(position)
 
 
 def _player_label(name: str, position: str, is_hero: bool) -> str:
@@ -93,9 +88,11 @@ def _is_post(act: Action) -> bool:
     return act.action.startswith("posts")
 
 
-def serialize_hand(hand: Hand) -> dict[str, Any]:
+def serialize_hand(hand: Hand, *, table_format: str | None = None) -> dict[str, Any]:
+    fmt = table_format or ("9max" if hand.max_players >= 9 else "6max")
+    profile = get_profile(fmt)
     bb = _bb_size(hand)
-    pos = position_map(hand)
+    pos = profile.position_map(hand)
     board_all = _board_cards(hand)
     names = list(hand.seat_names.values())
     players = []
@@ -106,7 +103,7 @@ def serialize_hand(hand: Hand) -> dict[str, Any]:
                 "name": name,
                 "seat": seat,
                 "position": position,
-                "layout": _layout_key(position),
+                "layout": _layout_key(position, fmt),
                 "is_hero": name == "Hero",
                 "cards": _hole_cards(hand, name),
             }
@@ -186,6 +183,7 @@ def serialize_hand(hand: Hand) -> dict[str, Any]:
         "stakes": hand.stakes,
         "table": hand.table_name,
         "bb": bb,
+        "table_format": fmt,
         "players": players,
         "frames": frames,
     }

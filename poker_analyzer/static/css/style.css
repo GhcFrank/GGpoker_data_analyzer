@@ -796,6 +796,22 @@ h1 {
   background: var(--bg2);
 }
 
+.pf-matrix-wrap.pf-matrix-9max .pf-matrix-table {
+  min-width: 820px;
+  font-size: 0.68rem;
+}
+
+.pf-matrix-wrap.pf-matrix-9max .pf-matrix-table th,
+.pf-matrix-wrap.pf-matrix-9max .pf-matrix-table td {
+  padding: 6px 4px;
+}
+
+.field-required {
+  color: var(--accent);
+  font-style: normal;
+  font-size: 0.82em;
+}
+
 .pf-matrix-table {
   width: 100%;
   border-collapse: collapse;

@@ -37,4 +37,5 @@ def get_replay(
         return {"index": 0, "total": 0, "hand": None}
     if found is None:
         raise ValueError(f"index {index} 超出范围 0..{total - 1}")
-    return {"index": index, "total": total, "hand": serialize_hand(found)}
+    opts = options or {}
+    return {"index": index, "total": total, "hand": serialize_hand(found, table_format=opts.get("table_format"))}

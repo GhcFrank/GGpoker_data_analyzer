@@ -1,6 +1,11 @@
 (() => {
   const SUIT = { s: "♠", h: "♥", d: "♦", c: "♣" };
-  const LAYOUT_POS = { UTG: 0, HJ: 1, CO: 2, BTN: 3, SB: 4, BB: 5 };
+  const LAYOUT_POS_6 = { UTG: 0, HJ: 1, CO: 2, BTN: 3, SB: 4, BB: 5 };
+  const LAYOUT_POS_9 = {
+    UTG: 0, UTG1: 1, UTG2: 2, LJ: 3, HJ: 4, CO: 5, BTN: 6, SB: 7, BB: 8,
+  };
+  const LAYOUT_KEYS_6 = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
+  const LAYOUT_KEYS_9 = ["UTG", "UTG1", "UTG2", "LJ", "HJ", "CO", "BTN", "SB", "BB"];
 
   const state = {
     open: false,
@@ -33,22 +38,31 @@
     return `<span class="pcard back"></span><span class="pcard back"></span>`;
   }
 
-  function layoutClass(player, used) {
+  function layoutPosMap(hand) {
+    return hand && hand.table_format === "9max" ? LAYOUT_POS_9 : LAYOUT_POS_6;
+  }
+
+  function layoutKeys(hand) {
+    return hand && hand.table_format === "9max" ? LAYOUT_KEYS_9 : LAYOUT_KEYS_6;
+  }
+
+  function layoutClass(player, used, hand) {
     let key = player.layout || "";
     if (key && !used.has(key)) {
       used.add(key);
       return `s-${key}`;
     }
-    const leftovers = ["UTG", "HJ", "CO", "BTN", "SB", "BB"].filter((p) => !used.has(p));
+    const leftovers = layoutKeys(hand).filter((p) => !used.has(p));
     key = leftovers[0] || "other";
     used.add(key);
     return `s-${key}`;
   }
 
-  function sortPlayers(players) {
+  function sortPlayers(players, hand) {
+    const layoutPos = layoutPosMap(hand);
     return [...players].sort((a, b) => {
-      const pa = LAYOUT_POS[a.layout] ?? 90 + (a.seat || 0);
-      const pb = LAYOUT_POS[b.layout] ?? 90 + (b.seat || 0);
+      const pa = layoutPos[a.layout] ?? 90 + (a.seat || 0);
+      const pb = layoutPos[b.layout] ?? 90 + (b.seat || 0);
       return pa - pb;
     });
   }
@@ -69,14 +83,14 @@
     state.frame = i;
     const frame = frames[i];
     const used = new Set();
-    const seats = sortPlayers(hand.players || [])
+    const seats = sortPlayers(hand.players || [], hand)
       .map((p) => {
         const front = (frame.front_bb || {})[p.name] || 0;
         const folded = (frame.folded || []).includes(p.name);
         const active = frame.actor === p.name;
         const cls = [
           "replay-seat",
-          layoutClass(p, used),
+          layoutClass(p, used, hand),
           folded ? "is-folded" : "",
           active ? "is-active" : "",
         ]
@@ -98,8 +112,9 @@
       })
       .join("");
     const board = (frame.board || []).map(cardHtml).join("");
+    const tableCls = hand.table_format === "9max" ? "replay-table is-9max" : "replay-table";
     stage.innerHTML = `
-      <div class="replay-table">
+      <div class="${tableCls}">
         <div class="replay-felt"></div>
         <div class="replay-pot">
           <span class="pot-label">底池</span>

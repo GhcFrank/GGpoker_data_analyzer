@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 from poker.metrics.base import Metric, register
-from poker.metrics.preflop_analysis import position_map
 from poker.models import Action, Hand, HandDataset
+from poker.positions import NINE_MAX_PROFILE, SIX_MAX_PROFILE
 
 HERO = "Hero"
 STEAL_POSITIONS = frozenset({"CO", "BTN", "SB"})
@@ -84,9 +84,15 @@ def _hero_pfr(hand: Hand) -> bool:
     return False
 
 
+def _profile_for_hand(hand: Hand):
+    if hand.max_players >= 9:
+        return NINE_MAX_PROFILE
+    return SIX_MAX_PROFILE
+
+
 def _steal_spot(hand: Hand) -> tuple[bool, bool]:
     """(opportunity, attempt) for ATS from CO/BTN/SB when folded to."""
-    pos = position_map(hand).get(HERO)
+    pos = _profile_for_hand(hand).position_map(hand).get(HERO)
     if pos not in STEAL_POSITIONS:
         return False, False
     for act in hand.actions:

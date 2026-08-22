@@ -7,18 +7,18 @@ from poker.equity import UNKNOWN_COMBO, hole_combo_label, preflop_equity
 from poker.filters import normalize_stakes
 from poker.metrics.base import Metric, register
 from poker.models import Action, Hand, HandDataset
-from poker.positions.six_max import POSITION_ORDER, SIX_MAX_PROFILE, position_map
+from poker.positions.nine_max import POSITION_ORDER, NINE_MAX_PROFILE, position_map
 
 HERO = "Hero"
 ACTIONS_IMPLEMENTED = frozenset({"open_raise", "3bet", "4bet", "5bet", "3bet_matrix", "4bet_matrix"})
 
 
 def positions_in_front(hero_pos: str) -> list[str]:
-    return SIX_MAX_PROFILE.positions_in_front(hero_pos)
+    return NINE_MAX_PROFILE.positions_in_front(hero_pos)
 
 
 def positions_except(hero_pos: str) -> list[str]:
-    return SIX_MAX_PROFILE.positions_except(hero_pos)
+    return NINE_MAX_PROFILE.positions_except(hero_pos)
 
 
 def _bb_size(hand: Hand) -> float | None:
@@ -574,12 +574,12 @@ def _stat(count: int, n: int) -> dict[str, Any]:
 
 
 @register
-class PreflopAnalysisMetric(Metric):
-    """Preflop open-raise / 3bet frequencies from Hero's chosen seat."""
+class PreflopAnalysis9MaxMetric(Metric):
+    """9-max preflop open-raise / 3bet frequencies from Hero's chosen seat."""
 
-    id = "preflop_analysis"
-    name = "翻前分析"
-    description = "按位置统计 Hero open raise / 3bet / 4bet / 5bet 后的对手反应"
+    id = "preflop_analysis_9max"
+    name = "翻前分析 (9-max)"
+    description = "9-max 按位置统计 Hero open raise / 3bet / 4bet / 5bet 后的对手反应"
     chart_type = "stats"
 
     def compute(self, dataset: HandDataset, options: dict[str, Any] | None = None) -> dict[str, Any]:

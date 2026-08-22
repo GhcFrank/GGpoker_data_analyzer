@@ -40,7 +40,7 @@
       <div class="filter-head">
         <div>
           <h2 class="filter-title">数据筛选</h2>
-          <p class="filter-hint">默认全选；修改后点击「分析」加载数据并刷新下方结果。</p>
+          <p class="filter-hint">请先选择 6-max 或 9-max 桌型，再设置其他筛选并点击「分析」。</p>
         </div>
         <div class="filter-actions">
           <button type="button" class="btn ghost" id="resetFilterBtn">重置为全部</button>
@@ -56,6 +56,10 @@
         <div class="filter-field">
           <label for="dateTo">结束日期</label>
           <input type="date" id="dateTo" />
+        </div>
+        <div class="filter-field filter-field-wide">
+          <span class="field-label">桌型 <em class="field-required">必选</em></span>
+          <div class="stakes-group" id="tableFormatGroup"></div>
         </div>
         <div class="filter-field">
           <span class="field-label">游戏类型</span>
