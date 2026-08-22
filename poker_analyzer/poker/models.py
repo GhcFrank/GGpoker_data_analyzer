@@ -109,6 +109,7 @@ class HandDataset:
 
     hands: list[Hand] = field(default_factory=list)
     source_label: str = "local"
+    load_stats: dict[str, int] = field(default_factory=dict)
 
     def sorted_hands(self) -> list[Hand]:
         return sorted(self.hands, key=lambda h: (h.datetime, h.hand_id))

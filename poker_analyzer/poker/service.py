@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from poker.config import format_data_dir, load_data_dir, resolve_data_dir, save_data_dir
-from poker.filters import FilterSpec, apply_filter, filter_options
+from poker.filters import FilterSpec, apply_filter, filter_options, hand_file_date
 from poker.metrics.base import get_metric, list_metrics, load_builtin_metrics
 from poker.models import HandDataset
 from poker.sources import LocalDirectorySource
@@ -65,19 +65,34 @@ class AnalysisService:
     def ensure_loaded(self) -> HandDataset:
         return self.dataset
 
+    def _load_stats(self, ds: HandDataset) -> dict[str, int]:
+        stats = ds.load_stats
+        hand_count = len(ds.hands)
+        return {
+            "raw_hand_count": stats.get("raw_hand_count", hand_count),
+            "duplicate_hands_removed": stats.get("duplicate_hands_removed", 0),
+            "duplicate_files_skipped": stats.get("duplicate_files_skipped", 0),
+            "file_count": stats.get("file_count", len({h.source_file for h in ds.hands})),
+        }
+
     def summary(self) -> dict[str, Any]:
         if self._dataset is None:
             return self.dir_info()
         ds = self._dataset
+        load_stats = self._load_stats(ds)
+        file_dates = sorted({d for h in ds.hands if (d := hand_file_date(h))})
         return {
             "data_dir": format_data_dir(self.data_dir),
             "data_dir_resolved": str(self.data_dir),
             "source": ds.source_label,
             "hand_count": len(ds.hands),
-            "file_count": len({h.source_file for h in ds.hands}),
+            "file_count": load_stats["file_count"],
+            "raw_hand_count": load_stats["raw_hand_count"],
+            "duplicate_hands_removed": load_stats["duplicate_hands_removed"],
+            "duplicate_files_skipped": load_stats["duplicate_files_skipped"],
             "date_range": {
-                "start": ds.hands[0].datetime.isoformat(sep=" ") if ds.hands else None,
-                "end": ds.hands[-1].datetime.isoformat(sep=" ") if ds.hands else None,
+                "start": file_dates[0].isoformat() if file_dates else None,
+                "end": file_dates[-1].isoformat() if file_dates else None,
             },
             "filter": filter_options(ds),
             "metrics": list_metrics(),

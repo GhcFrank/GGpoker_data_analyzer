@@ -120,7 +120,16 @@ def _money(value: str | None) -> float:
 
 def _split_hands(text: str) -> list[str]:
     parts = re.split(r"(?=^Poker Hand #)", text, flags=re.MULTILINE)
-    return [p.strip() for p in parts if p.strip().startswith("Poker Hand #")]
+    blocks: list[str] = []
+    for part in parts:
+        block = part.strip()
+        if not block.startswith("Poker Hand #"):
+            continue
+        header_line = block.split("\n", 1)[0]
+        if _parse_hand_header(header_line) is None:
+            continue
+        blocks.append(block)
+    return blocks
 
 
 def parse_hand(raw: str, source_file: str = "") -> Hand | None:

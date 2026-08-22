@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -29,11 +30,21 @@ class LocalDirectorySource(DataSource):
 
         hands: list[Hand] = []
         files = sorted(self.directory.glob(self.pattern))
+        seen_file_hashes: set[str] = set()
+        duplicate_files_skipped = 0
+        file_count = 0
         for path in files:
             if not path.is_file():
                 continue
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            if digest in seen_file_hashes:
+                duplicate_files_skipped += 1
+                continue
+            seen_file_hashes.add(digest)
+            file_count += 1
             hands.extend(parse_file(path))
 
+        raw_hand_count = len(hands)
         # Deduplicate by hand_id (same hand may appear if files overlap)
         unique: dict[str, Hand] = {}
         for hand in hands:
@@ -42,6 +53,12 @@ class LocalDirectorySource(DataSource):
         dataset = HandDataset(
             hands=list(unique.values()),
             source_label=f"local:{self.directory.resolve()}",
+            load_stats={
+                "raw_hand_count": raw_hand_count,
+                "duplicate_hands_removed": raw_hand_count - len(unique),
+                "duplicate_files_skipped": duplicate_files_skipped,
+                "file_count": file_count,
+            },
         )
         dataset.hands = dataset.sorted_hands()
         return dataset

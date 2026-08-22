@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime, time
+from datetime import date, datetime
 from typing import Any, Iterable
 
 from poker.models import Hand, HandDataset
@@ -124,6 +124,21 @@ def _parse_date(value: Any) -> date | None:
     return date.fromisoformat(text)
 
 
+_FILENAME_DATE_RE = re.compile(r"^GG(?P<y>\d{4})(?P<m>\d{2})(?P<d>\d{2})")
+
+
+def file_date_from_name(name: str) -> date | None:
+    """Parse session date from GG export filename, e.g. GG20260822-....txt."""
+    m = _FILENAME_DATE_RE.match(name)
+    if not m:
+        return None
+    return date(int(m.group("y")), int(m.group("m")), int(m.group("d")))
+
+
+def hand_file_date(hand: Hand) -> date | None:
+    return file_date_from_name(hand.source_file)
+
+
 def hand_stakes_key(hand: Hand) -> str | None:
     return normalize_stakes(hand.stakes)
 
@@ -155,16 +170,17 @@ def apply_filter(dataset: HandDataset, spec: FilterSpec | None) -> HandDataset:
 
     stakes_set = {normalize_stakes(s) for s in spec.stakes if normalize_stakes(s)}
     game_type_set = {g for g in spec.game_types if g in _VALID_GAME_TYPES}
-    start_dt = datetime.combine(spec.date_from, time.min) if spec.date_from else None
-    # Inclusive end date: keep entire calendar day
-    end_dt = datetime.combine(spec.date_to, time.max) if spec.date_to else None
 
     filtered: list[Hand] = []
     for hand in dataset.hands:
-        if start_dt and hand.datetime < start_dt:
-            continue
-        if end_dt and hand.datetime > end_dt:
-            continue
+        if spec.date_from or spec.date_to:
+            file_day = hand_file_date(hand)
+            if file_day is None:
+                continue
+            if spec.date_from and file_day < spec.date_from:
+                continue
+            if spec.date_to and file_day > spec.date_to:
+                continue
         if stakes_set:
             key = hand_stakes_key(hand)
             if key not in stakes_set:
@@ -221,11 +237,15 @@ def directory_filter_hints(directory: Path) -> dict[str, Any]:
     if not directory.is_dir():
         return {"table_formats": formats, "stakes_by_format": stakes_by_format}
 
+    file_dates: list[date] = []
     for path in directory.glob("*.txt"):
         if not path.is_file():
             continue
         name = path.name
         lower = name.lower()
+        day = file_date_from_name(name)
+        if day:
+            file_dates.append(day)
         m = _FILENAME_STAKES_FMT_RE.search(name)
         if m:
             fmt = m.group("fmt").lower()
@@ -242,9 +262,11 @@ def directory_filter_hints(directory: Path) -> dict[str, Any]:
             # Legacy filenames (e.g. all_hand/) without suffix → treat as 6-max cash.
             formats.add(TABLE_FORMAT_6MAX)
 
+    file_dates.sort()
     return {
         "table_formats": formats,
         "stakes_by_format": {k: sorted(v) for k, v in stakes_by_format.items()},
+        "file_dates": file_dates,
     }
 
 
@@ -253,13 +275,14 @@ def filter_options_from_directory(directory: Path) -> dict[str, Any]:
     hints = directory_filter_hints(directory)
     present_formats = hints["table_formats"]
     stakes_by_format = hints["stakes_by_format"]
+    file_dates = hints.get("file_dates") or []
     all_stakes: set[str] = set()
     for stakes in stakes_by_format.values():
         all_stakes.update(stakes)
 
     return {
-        "date_from": None,
-        "date_to": None,
+        "date_from": file_dates[0].isoformat() if file_dates else None,
+        "date_to": file_dates[-1].isoformat() if file_dates else None,
         "stakes_presets": [
             {
                 "id": s,
@@ -320,9 +343,10 @@ def filter_options(dataset: HandDataset) -> dict[str, Any]:
     stakes_by_format = {
         fid: available_stakes_for_format(hands, fid) for fid, _ in PRESET_TABLE_FORMATS
     }
+    file_dates = sorted({d for h in hands if (d := hand_file_date(h))})
     return {
-        "date_from": hands[0].datetime.date().isoformat() if hands else None,
-        "date_to": hands[-1].datetime.date().isoformat() if hands else None,
+        "date_from": file_dates[0].isoformat() if file_dates else None,
+        "date_to": file_dates[-1].isoformat() if file_dates else None,
         "stakes_presets": [
             {
                 "id": s,

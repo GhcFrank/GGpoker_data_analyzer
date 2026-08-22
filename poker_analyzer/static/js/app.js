@@ -820,14 +820,28 @@
       data.date_range?.start && data.date_range?.end
         ? `${data.date_range.start} → ${data.date_range.end}`
         : "无数据";
+    const dupHands = data.duplicate_hands_removed || 0;
+    const dupFiles = data.duplicate_files_skipped || 0;
+    const dupNote =
+      dupHands || dupFiles
+        ? `（已去重 ${dupHands} 手重复` +
+          (dupFiles ? `，跳过 ${dupFiles} 个内容重复文件` : "") +
+          "）"
+        : "";
     summaryEl.textContent =
-      `已加载 ${data.hand_count} 手 · ${data.file_count} 个文件 · ${range}`;
+      `已加载 ${data.hand_count} 手${dupNote} · ${data.file_count} 个文件 · ${range}`;
     summaryEl.classList.add("is-ok");
     setupFilter(data);
     if (announce) {
+      const dupHands = data.duplicate_hands_removed || 0;
+      const dupFiles = data.duplicate_files_skipped || 0;
+      const dupNote =
+        dupHands || dupFiles
+          ? `；已去重 ${dupHands} 手` + (dupFiles ? `，跳过 ${dupFiles} 个重复文件` : "")
+          : "";
       showToast(
         "数据集加载成功",
-        `共 ${data.hand_count} 手牌 · ${data.file_count} 个文件 · ${range}`,
+        `共 ${data.hand_count} 手牌 · ${data.file_count} 个文件 · ${range}${dupNote}`,
       );
     }
     return data;
@@ -839,6 +853,11 @@
   }
 
   async function ensureDataLoaded() {
+    const wantDir = $("#dataDirInput").value.trim();
+    const loadedDir = state.summary?.data_dir_resolved || state.summary?.data_dir || "";
+    if (state.summary?.loaded && wantDir && loadedDir && wantDir !== loadedDir) {
+      state.summary.loaded = false;
+    }
     if (state.summary?.loaded) return state.summary;
     const saved = readFilter();
     $("#filterStatus").textContent = "正在加载并解析牌谱…";
@@ -1714,6 +1733,9 @@
         ev.preventDefault();
         applyDataDir();
       }
+    });
+    $("#dataDirInput").addEventListener("input", () => {
+      if (state.summary?.loaded) state.summary.loaded = false;
     });
 
     $("#reloadBtn").addEventListener("click", async () => {
