@@ -3,19 +3,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any, Iterable
 
 from poker.models import Hand, HandDataset
-
-# Preset stake levels shown in the UI (SB/BB). Current data is 0.05/0.1;
-# others are reserved for future HH files.
-PRESET_STAKES: tuple[str, ...] = (
-    "0.02/0.05",
-    "0.05/0.1",
-    "0.1/0.25",
-    "0.2/0.5",
-    "0.5/1",
-)
 
 # Game types: regular cash (NLH*) vs Rush & Cash speed tables.
 GAME_TYPE_NLH = "nlh"
@@ -54,6 +45,27 @@ def normalize_stakes(raw: str) -> str | None:
 def _fmt_level(value: float) -> str:
     text = f"{value:.4f}".rstrip("0").rstrip(".")
     return text or "0"
+
+
+def _stakes_sort_key(stakes: str) -> tuple[float, float]:
+    parts = stakes.split("/", 1)
+    if len(parts) != 2:
+        return (0.0, 0.0)
+    try:
+        return (float(parts[1]), float(parts[0]))
+    except ValueError:
+        return (0.0, 0.0)
+
+
+def sort_stakes(stakes: Iterable[str]) -> list[str]:
+    return sorted({s for s in stakes if s}, key=_stakes_sort_key)
+
+
+def _stakes_preset_items(stakes: Iterable[str]) -> list[dict[str, Any]]:
+    return [
+        {"id": s, "label": s.replace("/", "-"), "has_data": True}
+        for s in sort_stakes(stakes)
+    ]
 
 
 @dataclass
@@ -199,14 +211,7 @@ def apply_filter(dataset: HandDataset, spec: FilterSpec | None) -> HandDataset:
 def available_stakes(hands: Iterable[Hand]) -> list[str]:
     found = {hand_stakes_key(h) for h in hands}
     found.discard(None)
-    # Prefer preset order, then any extras discovered in data
-    ordered: list[str] = []
-    for preset in PRESET_STAKES:
-        if preset in found:
-            ordered.append(preset)
-            found.discard(preset)
-    ordered.extend(sorted(found))  # type: ignore[arg-type]
-    return ordered
+    return sort_stakes(found)  # type: ignore[arg-type]
 
 
 def available_game_types(hands: Iterable[Hand]) -> list[str]:
@@ -265,7 +270,7 @@ def directory_filter_hints(directory: Path) -> dict[str, Any]:
     file_dates.sort()
     return {
         "table_formats": formats,
-        "stakes_by_format": {k: sorted(v) for k, v in stakes_by_format.items()},
+        "stakes_by_format": {k: sort_stakes(v) for k, v in stakes_by_format.items()},
         "file_dates": file_dates,
     }
 
@@ -279,19 +284,13 @@ def filter_options_from_directory(directory: Path) -> dict[str, Any]:
     all_stakes: set[str] = set()
     for stakes in stakes_by_format.values():
         all_stakes.update(stakes)
+    sorted_stakes = sort_stakes(all_stakes)
 
     return {
         "date_from": file_dates[0].isoformat() if file_dates else None,
         "date_to": file_dates[-1].isoformat() if file_dates else None,
-        "stakes_presets": [
-            {
-                "id": s,
-                "label": s.replace("/", "-"),
-                "has_data": s in all_stakes,
-            }
-            for s in PRESET_STAKES
-        ],
-        "stakes_in_data": sorted(all_stakes),
+        "stakes_presets": _stakes_preset_items(sorted_stakes),
+        "stakes_in_data": sorted_stakes,
         "game_types_presets": [
             {"id": gid, "label": label, "has_data": True}
             for gid, label in PRESET_GAME_TYPES
@@ -315,10 +314,7 @@ def empty_filter_options() -> dict[str, Any]:
     return {
         "date_from": None,
         "date_to": None,
-        "stakes_presets": [
-            {"id": s, "label": s.replace("/", "-"), "has_data": False}
-            for s in PRESET_STAKES
-        ],
+        "stakes_presets": [],
         "stakes_in_data": [],
         "game_types_presets": [
             {"id": gid, "label": label, "has_data": False}
@@ -337,7 +333,6 @@ def empty_filter_options() -> dict[str, Any]:
 def filter_options(dataset: HandDataset) -> dict[str, Any]:
     hands = dataset.sorted_hands()
     present = available_stakes(hands)
-    present_set = set(present)
     present_game_types = set(available_game_types(hands))
     present_table_formats = set(available_table_formats(hands))
     stakes_by_format = {
@@ -347,14 +342,7 @@ def filter_options(dataset: HandDataset) -> dict[str, Any]:
     return {
         "date_from": file_dates[0].isoformat() if file_dates else None,
         "date_to": file_dates[-1].isoformat() if file_dates else None,
-        "stakes_presets": [
-            {
-                "id": s,
-                "label": s.replace("/", "-"),
-                "has_data": s in present_set,
-            }
-            for s in PRESET_STAKES
-        ],
+        "stakes_presets": _stakes_preset_items(present),
         "stakes_in_data": present,
         "game_types_presets": [
             {

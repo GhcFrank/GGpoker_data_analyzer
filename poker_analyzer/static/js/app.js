@@ -687,26 +687,31 @@
     }
   }
 
+  function stakesForCurrentFormat(filter) {
+    const tableFormat = selectedTableFormat();
+    const byFormat = filter.stakes_by_format || {};
+    if (tableFormat && (byFormat[tableFormat] || []).length) {
+      return byFormat[tableFormat];
+    }
+    return filter.stakes_in_data || (filter.stakes_presets || []).map((s) => s.id);
+  }
+
   function refreshStakesGroup() {
     const filter = state.summary?.filter || {};
-    const tableFormat = selectedTableFormat();
-    const presets = filter.stakes_presets || [];
-    const inFormat = new Set(
-      (filter.stakes_by_format && tableFormat && filter.stakes_by_format[tableFormat]) || [],
-    );
+    const stakeIds = stakesForCurrentFormat(filter);
     const host = $("#stakesGroup");
     if (!host) return;
     host.innerHTML = "";
-    for (const stake of presets) {
-      const hasData = tableFormat
-        ? (inFormat.size ? inFormat.has(stake.id) : stake.has_data)
-        : stake.has_data;
+    if (!stakeIds.length) {
+      host.innerHTML = '<span class="field-hint">未识别到级别，请确认牌谱文件或先点击「分析」。</span>';
+      return;
+    }
+    for (const id of stakeIds) {
       const label = document.createElement("label");
-      label.className = "stake-chip" + (hasData ? " has-data" : "");
+      label.className = "stake-chip has-data";
       label.innerHTML = `
-        <input type="checkbox" value="${stake.id}" ${hasData ? "checked" : ""} ${hasData ? "" : "disabled"} />
-        <span>${stake.label}</span>
-        ${hasData ? "" : '<span class="tag">无数据</span>'}
+        <input type="checkbox" value="${id}" checked />
+        <span>${id.replace("/", "-")}</span>
       `;
       host.appendChild(label);
     }
@@ -717,7 +722,7 @@
     state.filterDefaults = {
       date_from: filter.date_from || "",
       date_to: filter.date_to || "",
-      stakes: (filter.stakes_presets || []).map((s) => s.id),
+      stakes: stakesForCurrentFormat(filter),
       game_types: (filter.game_types_presets || []).map((g) => g.id),
       table_format: "",
     };
