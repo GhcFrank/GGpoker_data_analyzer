@@ -6092,7 +6092,7 @@ Seat 6: 3c10515a folded before Flop (didn't bet)
 
 Poker Hand #RC4758351122: Hold'em No Limit ($0.05/$0.1) - 2026/08/26 23:24:42
 Table 'RushAndCash12396382' 6-max Seat #1 is the button
-Seat 1: 7dfd0ac3 ($6.16 in chips)
+Seat 1: 7dfd0ac3 ($1.16 in chips)
 Seat 2: f02ad9c5 ($19.15 in chips)
 Seat 3: e776c701 ($11.74 in chips)
 Seat 4: Hero ($10.58 in chips)
@@ -6299,7 +6299,7 @@ bf037931: calls $0.2
 Hero: folds
 *** FLOP *** [Kd 4c 9d]
 bf037931: checks
-5870cea8: bets $0.2
+5870cea8: bets $0.3
 bf037931: calls $0.2
 *** TURN *** [Kd 4c 9d] [8c]
 bf037931: checks

@@ -1791,7 +1791,7 @@ Hero: calls $0.1
 *** FLOP *** [Ah 8d 6h]
 Hero: checks
 96709e08: bets $0.15
-Hero: calls $0.15
+Hero: calls $0 15
 *** TURN *** [Ah 8d 6h] [Js]
 Hero: checks
 96709e08: bets $0.57
@@ -8284,7 +8284,7 @@ Poker Hand #RC4758344995: Hold'em No Limit ($0.05/$0.1) - 2026/08/26 23:11:57
 Table 'RushAndCash12390255' 6-max Seat #1 is the button
 Seat 1: ceea06 ($13.92 in chips)
 Seat 2: Hero ($21.67 in chips)
-Seat 3: 909f1e4e ($15.42 in chips)
+Seat 3: 909f1e4e ($15.01 in chips)
 Seat 4: 510d181d ($11.52 in chips)
 Seat 5: b1651f1b ($10.91 in chips)
 Seat 6: 717c0ce3 ($10.33 in chips)

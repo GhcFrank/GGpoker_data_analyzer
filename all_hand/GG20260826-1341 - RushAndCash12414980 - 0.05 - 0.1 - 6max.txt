@@ -1970,7 +1970,7 @@ Seat 5: Hero folded on the River
 Seat 6: e3c1bbab folded before Flop (didn't bet)
 
 
-Poker Hand #RC4758435227: Hold'em No Limit ($0.05/$0.1) - 2026/08/26 23:54:03
+Poker Hand #RC4758435227: Hold'em No Limit ($0.25/$0.1) - 2026/08/26 23:54:03
 Table 'RushAndCash12410487' 6-max Seat #1 is the button
 Seat 1: 17294a9 ($12.5 in chips)
 Seat 2: Hero ($24.73 in chips)
