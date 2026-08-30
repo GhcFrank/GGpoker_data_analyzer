@@ -871,16 +871,7 @@
     applySummary(data, { announce: true });
     if (saved.date_from) $("#dateFrom").value = saved.date_from;
     if (saved.date_to) $("#dateTo").value = saved.date_to;
-    if (saved.stakes.length) {
-      for (const input of document.querySelectorAll("#stakesGroup input[type=checkbox]")) {
-        input.checked = saved.stakes.includes(input.value);
-      }
-    }
-    if (saved.game_types.length) {
-      for (const input of document.querySelectorAll("#gameTypeGroup input[type=checkbox]")) {
-        input.checked = saved.game_types.includes(input.value);
-      }
-    }
+    // 先恢复桌型并刷新盲注列表，再恢复勾选，避免 refreshStakesGroup 覆盖用户选择
     if (saved.table_format) {
       const tf = document.querySelector(
         `#tableFormatGroup input[value="${saved.table_format}"]`,
@@ -889,6 +880,16 @@
         tf.checked = true;
         refreshStakesGroup();
         refreshPreflopPositionUI();
+      }
+    }
+    if (saved.stakes.length) {
+      for (const input of document.querySelectorAll("#stakesGroup input[type=checkbox]")) {
+        input.checked = saved.stakes.includes(input.value);
+      }
+    }
+    if (saved.game_types.length) {
+      for (const input of document.querySelectorAll("#gameTypeGroup input[type=checkbox]")) {
+        input.checked = saved.game_types.includes(input.value);
       }
     }
     return data;
