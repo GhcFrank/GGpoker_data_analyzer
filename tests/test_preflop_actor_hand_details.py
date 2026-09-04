@@ -338,6 +338,15 @@ Total pot {currency}24 | Rake {currency}0
                 )
                 self.assertEqual(fourbet_result["threebettor_call"]["count"], 1)
                 self.assertEqual(
+                    fourbet_result["event_counts"],
+                    {
+                        "threebettor_faced": 1,
+                        "all_fold": 0,
+                        "faced_5bet": 1,
+                        "threebettor_call": 1,
+                    },
+                )
+                self.assertEqual(
                     fourbet_result["hand_details"]["threebettor_call"]["hands"][0]["hand"],
                     "AKs",
                 )
@@ -388,6 +397,14 @@ Total pot {currency}24 | Rake {currency}0
                     {"action": "5bet", "hero_position": "SB", "fourbettor_position": "BTN"},
                 )
                 self.assertEqual(fivebet_result["fourbettor_call"]["count"], 1)
+                self.assertEqual(
+                    fivebet_result["event_counts"],
+                    {
+                        "fourbettor_faced": 2,
+                        "fourbettor_fold": 1,
+                        "fourbettor_call": 1,
+                    },
+                )
                 self.assertEqual(
                     fivebet_result["hand_details"]["fourbettor_call"]["hands"][0]["hand"],
                     "AKo",
