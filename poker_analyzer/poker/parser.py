@@ -1,10 +1,24 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 from poker.models import Action, Hand
+
+
+@dataclass(frozen=True)
+class HandMetadata:
+    """Header/table fields needed for lightweight filter discovery."""
+
+    hand_id: str
+    site: str
+    game: str
+    datetime: datetime
+    stakes: str
+    table_name: str
+    max_players: int
 
 
 _AMOUNT = r"\d+(?:\.\d+)?"
@@ -175,6 +189,36 @@ def _split_hands(text: str) -> list[str]:
             continue
         blocks.append(block)
     return blocks
+
+
+def scan_hand_metadata(text: str) -> list[HandMetadata]:
+    """Read header/table metadata for every supported hand without parsing actions."""
+    metadata: list[HandMetadata] = []
+    for block in _split_hands(text):
+        lines = block.splitlines()
+        header = _parse_hand_header(lines[0])
+        if header is None:
+            continue
+        table_name = ""
+        max_players = 0
+        for line in lines[1:]:
+            table = TABLE_RE.match(line)
+            if table:
+                table_name = table.group("table")
+                max_players = int(table.group("max"))
+                break
+        metadata.append(
+            HandMetadata(
+                hand_id=header["hand_id"],
+                site=header["site"],
+                game=header["game"],
+                datetime=datetime.strptime(header["dt"], "%Y/%m/%d %H:%M:%S"),
+                stakes=header["stakes"],
+                table_name=table_name,
+                max_players=max_players,
+            )
+        )
+    return metadata
 
 
 def parse_hand(raw: str, source_file: str = "") -> Hand | None:
