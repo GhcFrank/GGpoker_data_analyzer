@@ -3,9 +3,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 
-from poker.equity import UNKNOWN_COMBO, hole_combo_label, preflop_equity
+from poker.equity import preflop_equity
 from poker.filters import normalize_stakes
 from poker.metrics.base import Metric, register
+from poker.metrics.preflop_hand_details import (
+    build_hand_details as _build_hand_details,
+    combo_or_unknown as _combo_or_unknown,
+    combo_table as _combo_table,
+    first_raising_actor_after as _first_raising_actor_after,
+    player_cards as _player_cards,
+)
+from poker.metrics.preflop_events import (
+    build_event_counts as _build_event_counts,
+    spots_for_event as _spots_for_event,
+)
 from poker.models import Action, Hand, HandDataset
 from poker.positions.six_max import POSITION_ORDER, SIX_MAX_PROFILE, position_map
 
@@ -34,24 +45,6 @@ def _bb_size(hand: Hand) -> float | None:
         return None
 
 
-def _player_cards(hand: Hand, name: str) -> tuple[str, ...] | None:
-    cards = hand.shown_cards.get(name)
-    if cards and len(cards) >= 2:
-        return cards[:2]
-    if name == HERO and hand.hero_cards:
-        tokens = tuple(part for part in hand.hero_cards.split() if part)
-        if len(tokens) >= 2:
-            return tokens[:2]
-    return None
-
-
-def _combo_or_unknown(hand: Hand, name: str) -> str:
-    cards = _player_cards(hand, name)
-    if cards is None:
-        return UNKNOWN_COMBO
-    return hole_combo_label(cards)
-
-
 def _hero_showdown_share(hand: Hand) -> float:
     """1 = Hero won the pot, 0.5 = chopped, 0 = lost."""
     if hand.hero_collected <= 0:
@@ -62,24 +55,6 @@ def _hero_showdown_share(hand: Hand) -> float:
     if hand.hero_collected + 1e-9 >= total:
         return 1.0
     return 0.5
-
-
-def _combo_table(labels: list[str]) -> list[dict[str, Any]]:
-    n = len(labels)
-    counts: dict[str, int] = {}
-    for lab in labels:
-        counts[lab] = counts.get(lab, 0) + 1
-
-    def sort_key(item: tuple[str, int]) -> tuple[int, int, str]:
-        lab, count = item
-        if lab == UNKNOWN_COMBO:
-            return (1, 0, lab)
-        return (0, -count, lab)
-
-    return [
-        {"hand": lab, "count": count, "pct": _pct(count, n)}
-        for lab, count in sorted(counts.items(), key=sort_key)
-    ]
 
 
 def _raise_to_amount(act: Action) -> float:
@@ -207,6 +182,9 @@ def _response_after(hand: Hand, start_index: int) -> tuple[bool, bool, bool]:
 class OpenRaiseSpot:
     all_fold: bool
     faced_3bet: bool
+    threebettor: str | None
+    threebettor_position: str | None
+    threebet_combo: str | None
 
 
 @dataclass
@@ -217,6 +195,12 @@ class ThreeBetSpot:
     all_fold: bool
     cold_4bet: bool
     opener_acted: bool
+    opener: str
+    opener_position: str
+    opener_combo: str | None
+    cold_4bettor: str | None
+    cold_4bettor_position: str | None
+    cold_4bet_combo: str | None
 
 
 @dataclass
@@ -245,7 +229,14 @@ def extract_open_raise(hand: Hand, hero_pos: str) -> OpenRaiseSpot | None:
     if not act.is_hero:
         return None
     all_fold, _has_call, has_raise = _response_after(hand, idx)
-    return OpenRaiseSpot(all_fold=all_fold, faced_3bet=has_raise)
+    threebet_act = _first_raising_actor_after(hand, idx) if has_raise else None
+    return OpenRaiseSpot(
+        all_fold=all_fold,
+        faced_3bet=has_raise,
+        threebettor=threebet_act.player if threebet_act else None,
+        threebettor_position=pos.get(threebet_act.player) if threebet_act else None,
+        threebet_combo=_combo_or_unknown(hand, threebet_act.player) if threebet_act else None,
+    )
 
 
 def extract_3bet(hand: Hand, hero_pos: str, opener_pos: str) -> ThreeBetSpot | None:
@@ -273,6 +264,9 @@ def extract_3bet(hand: Hand, hero_pos: str, opener_pos: str) -> ThreeBetSpot | N
     opener_acted = False
     all_fold, _has_call, _has_raise = _response_after(hand, three_idx)
     cold_4bet = False
+    cold_4bettor = None
+    cold_4bettor_position = None
+    cold_4bet_combo = None
     raise_before_opener = False
 
     street = three_act.street
@@ -295,7 +289,11 @@ def extract_3bet(hand: Hand, hero_pos: str, opener_pos: str) -> ThreeBetSpot | N
         if act.action in ("raise", "bet") and act.player != opener:
             vill_pos = pos.get(act.player)
             if vill_pos in POSITION_ORDER and POSITION_ORDER.index(vill_pos) > hero_order:
-                cold_4bet = True
+                if not cold_4bet:
+                    cold_4bet = True
+                    cold_4bettor = act.player
+                    cold_4bettor_position = vill_pos
+                    cold_4bet_combo = _combo_or_unknown(hand, act.player)
             raise_before_opener = True
 
     return ThreeBetSpot(
@@ -305,6 +303,12 @@ def extract_3bet(hand: Hand, hero_pos: str, opener_pos: str) -> ThreeBetSpot | N
         all_fold=all_fold,
         cold_4bet=cold_4bet,
         opener_acted=opener_acted,
+        opener=opener,
+        opener_position=opener_pos,
+        opener_combo=_combo_or_unknown(hand, opener) if opener_acted else None,
+        cold_4bettor=cold_4bettor,
+        cold_4bettor_position=cold_4bettor_position,
+        cold_4bet_combo=cold_4bet_combo,
     )
 
 
@@ -439,6 +443,12 @@ class FourBetSpot:
     threebettor_call: bool
     threebettor_faced: bool
     call_combo: str | None
+    threebettor: str
+    threebettor_position: str
+    threebettor_combo: str | None
+    fivebettor: str | None
+    fivebettor_position: str | None
+    fivebet_combo: str | None
 
 
 @dataclass
@@ -447,6 +457,10 @@ class FiveBetSpot:
     fourbettor_call: bool
     fourbettor_faced: bool
     call_combo: str | None
+    fold_combo: str | None
+    fourbettor: str
+    fourbettor_position: str
+    fourbettor_combo: str | None
     theoretical_equity: float | None
     actual_share: float | None
 
@@ -508,12 +522,19 @@ def extract_4bet(hand: Hand, hero_pos: str, three_pos: str) -> FourBetSpot | Non
     all_fold, _has_call, has_raise = _response_after(hand, four_idx)
     faced, _folded, called, raised = _facing_response(hand, four_idx, three_act.player)
     call_combo = _combo_or_unknown(hand, three_act.player) if called else None
+    fivebet_act = _first_raising_actor_after(hand, four_idx) if has_raise or raised else None
     return FourBetSpot(
         all_fold=all_fold,
         faced_5bet=has_raise or raised,
         threebettor_call=called,
         threebettor_faced=faced,
         call_combo=call_combo,
+        threebettor=three_act.player,
+        threebettor_position=three_pos,
+        threebettor_combo=_combo_or_unknown(hand, three_act.player) if faced else None,
+        fivebettor=fivebet_act.player if fivebet_act else None,
+        fivebettor_position=pos.get(fivebet_act.player) if fivebet_act else None,
+        fivebet_combo=_combo_or_unknown(hand, fivebet_act.player) if fivebet_act else None,
     )
 
 
@@ -538,6 +559,7 @@ def extract_5bet(hand: Hand, hero_pos: str, four_pos: str) -> FiveBetSpot | None
 
     faced, folded, called, _raised = _facing_response(hand, five_idx, four_act.player)
     call_combo = None
+    fold_combo = None
     theoretical = None
     actual = None
     if called:
@@ -547,11 +569,17 @@ def extract_5bet(hand: Hand, hero_pos: str, four_pos: str) -> FiveBetSpot | None
         if hero_cards and vill_cards:
             theoretical = preflop_equity(hero_cards, vill_cards)
         actual = _hero_showdown_share(hand)
+    elif folded:
+        fold_combo = _combo_or_unknown(hand, four_act.player)
     return FiveBetSpot(
         fourbettor_fold=folded,
         fourbettor_call=called,
         fourbettor_faced=faced,
         call_combo=call_combo,
+        fold_combo=fold_combo,
+        fourbettor=four_act.player,
+        fourbettor_position=four_pos,
+        fourbettor_combo=_combo_or_unknown(hand, four_act.player) if faced else None,
         theoretical_equity=theoretical,
         actual_share=actual,
     )
@@ -805,8 +833,14 @@ class PreflopAnalysisMetric(Metric):
             if spot is not None:
                 spots.append(spot)
         n = len(spots)
-        all_fold_n = sum(1 for s in spots if s.all_fold)
-        threebet_n = sum(1 for s in spots if s.faced_3bet)
+        event_counts = _build_event_counts("open_raise", spots)
+        all_fold_n = event_counts["all_fold"]
+        threebet_n = event_counts["faced_3bet"]
+        threebet_hands = [
+            s.threebet_combo
+            for s in _spots_for_event("open_raise", spots, "faced_3bet")
+            if s.threebet_combo
+        ]
         return {
             "metric_id": self.id,
             "name": self.name,
@@ -815,6 +849,8 @@ class PreflopAnalysisMetric(Metric):
             "spot_count": n,
             "all_fold": _stat(all_fold_n, n),
             "faced_3bet": _stat(threebet_n, n),
+            "event_counts": event_counts,
+            "hand_details": _build_hand_details({"faced_3bet": threebet_hands}),
             "options": {
                 "hero_position": hero_pos,
                 "action": "open_raise",
@@ -846,7 +882,37 @@ class PreflopAnalysisMetric(Metric):
                     spots.append(spot)
 
         n = len(spots)
-        opener_n = sum(1 for s in spots if s.opener_acted)
+        event_counts = _build_event_counts("3bet", spots)
+        opener_n = event_counts["opener_responded"]
+        hand_details = _build_hand_details(
+            {
+                "opener_responded": [
+                    s.opener_combo
+                    for s in _spots_for_event("3bet", spots, "opener_responded")
+                    if s.opener_combo
+                ],
+                "opener_fold": [
+                    s.opener_combo
+                    for s in _spots_for_event("3bet", spots, "opener_fold")
+                    if s.opener_combo
+                ],
+                "opener_call": [
+                    s.opener_combo
+                    for s in _spots_for_event("3bet", spots, "opener_call")
+                    if s.opener_combo
+                ],
+                "opener_4bet": [
+                    s.opener_combo
+                    for s in _spots_for_event("3bet", spots, "opener_4bet")
+                    if s.opener_combo
+                ],
+                "cold_4bet": [
+                    s.cold_4bet_combo
+                    for s in _spots_for_event("3bet", spots, "cold_4bet")
+                    if s.cold_4bet_combo
+                ],
+            }
+        )
         return {
             "metric_id": self.id,
             "name": self.name,
@@ -855,11 +921,13 @@ class PreflopAnalysisMetric(Metric):
             "opener_position": opener_pos or None,
             "spot_count": n,
             "opener_responded": opener_n,
-            "opener_fold": _stat(sum(1 for s in spots if s.opener_fold), opener_n),
-            "opener_call": _stat(sum(1 for s in spots if s.opener_call), opener_n),
-            "opener_4bet": _stat(sum(1 for s in spots if s.opener_4bet), opener_n),
-            "all_fold": _stat(sum(1 for s in spots if s.all_fold), n),
-            "cold_4bet": _stat(sum(1 for s in spots if s.cold_4bet), n),
+            "opener_fold": _stat(event_counts["opener_fold"], opener_n),
+            "opener_call": _stat(event_counts["opener_call"], opener_n),
+            "opener_4bet": _stat(event_counts["opener_4bet"], opener_n),
+            "all_fold": _stat(event_counts["all_fold"], n),
+            "cold_4bet": _stat(event_counts["cold_4bet"], n),
+            "event_counts": event_counts,
+            "hand_details": hand_details,
             "options": {
                 "hero_position": hero_pos,
                 "action": "3bet",
@@ -892,8 +960,18 @@ class PreflopAnalysisMetric(Metric):
                     spots.append(spot)
 
         n = len(spots)
-        faced_n = sum(1 for s in spots if s.threebettor_faced)
-        call_hands = [s.call_combo for s in spots if s.threebettor_call and s.call_combo]
+        event_counts = _build_event_counts("4bet", spots)
+        faced_n = event_counts["threebettor_faced"]
+        call_hands = [
+            s.call_combo
+            for s in _spots_for_event("4bet", spots, "threebettor_call")
+            if s.call_combo
+        ]
+        fivebet_hands = [
+            s.fivebet_combo
+            for s in _spots_for_event("4bet", spots, "faced_5bet")
+            if s.fivebet_combo
+        ]
         return {
             "metric_id": self.id,
             "name": self.name,
@@ -902,11 +980,23 @@ class PreflopAnalysisMetric(Metric):
             "threebettor_position": three_pos or None,
             "spot_count": n,
             "threebettor_faced": faced_n,
-            "all_fold": _stat(sum(1 for s in spots if s.all_fold), n),
-            "faced_5bet": _stat(sum(1 for s in spots if s.faced_5bet), n),
-            "threebettor_call": _stat(sum(1 for s in spots if s.threebettor_call), faced_n),
+            "all_fold": _stat(event_counts["all_fold"], n),
+            "faced_5bet": _stat(event_counts["faced_5bet"], n),
+            "threebettor_call": _stat(event_counts["threebettor_call"], faced_n),
+            "event_counts": event_counts,
             "call_hands": _combo_table(call_hands),
             "call_hand_count": len(call_hands),
+            "hand_details": _build_hand_details(
+                {
+                    "threebettor_faced": [
+                        s.threebettor_combo
+                        for s in _spots_for_event("4bet", spots, "threebettor_faced")
+                        if s.threebettor_combo
+                    ],
+                    "faced_5bet": fivebet_hands,
+                    "threebettor_call": call_hands,
+                }
+            ),
             "options": {
                 "hero_position": hero_pos,
                 "action": "4bet",
@@ -939,8 +1029,18 @@ class PreflopAnalysisMetric(Metric):
                     spots.append(spot)
 
         n = len(spots)
-        faced_n = sum(1 for s in spots if s.fourbettor_faced)
-        call_hands = [s.call_combo for s in spots if s.fourbettor_call and s.call_combo]
+        event_counts = _build_event_counts("5bet", spots)
+        faced_n = event_counts["fourbettor_faced"]
+        call_hands = [
+            s.call_combo
+            for s in _spots_for_event("5bet", spots, "fourbettor_call")
+            if s.call_combo
+        ]
+        fold_hands = [
+            s.fold_combo
+            for s in _spots_for_event("5bet", spots, "fourbettor_fold")
+            if s.fold_combo
+        ]
         theor = [s.theoretical_equity for s in spots if s.theoretical_equity is not None]
         actual = [s.actual_share for s in spots if s.actual_share is not None]
         return {
@@ -951,8 +1051,9 @@ class PreflopAnalysisMetric(Metric):
             "fourbettor_position": four_pos or None,
             "spot_count": n,
             "fourbettor_faced": faced_n,
-            "fourbettor_fold": _stat(sum(1 for s in spots if s.fourbettor_fold), faced_n),
-            "fourbettor_call": _stat(sum(1 for s in spots if s.fourbettor_call), faced_n),
+            "fourbettor_fold": _stat(event_counts["fourbettor_fold"], faced_n),
+            "fourbettor_call": _stat(event_counts["fourbettor_call"], faced_n),
+            "event_counts": event_counts,
             "theoretical_equity": {
                 "pct": round(100.0 * (sum(theor) / len(theor)), 2) if theor else None,
                 "count": len(theor),
@@ -963,6 +1064,17 @@ class PreflopAnalysisMetric(Metric):
             },
             "call_hands": _combo_table(call_hands),
             "call_hand_count": len(call_hands),
+            "hand_details": _build_hand_details(
+                {
+                    "fourbettor_faced": [
+                        s.fourbettor_combo
+                        for s in _spots_for_event("5bet", spots, "fourbettor_faced")
+                        if s.fourbettor_combo
+                    ],
+                    "fourbettor_fold": fold_hands,
+                    "fourbettor_call": call_hands,
+                }
+            ),
             "options": {
                 "hero_position": hero_pos,
                 "action": "5bet",

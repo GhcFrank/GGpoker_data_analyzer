@@ -538,6 +538,52 @@ h1 {
 .stat .value.pos { color: var(--accent); }
 .stat .value.neg { color: var(--danger); }
 
+.pf-stat-event {
+  appearance: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+  padding-right: 32px;
+}
+
+.pf-stat-event::after {
+  content: "筛";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  transform: translateY(-50%);
+}
+
+.pf-stat-event:hover,
+.pf-stat-event.is-active {
+  border-color: var(--accent);
+  background: rgba(61, 155, 122, 0.14);
+}
+
+.pf-stat-event.is-active::after {
+  content: "清";
+}
+
+.pf-stat-event:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.pf-stat-event:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.pf-study-summary {
+  margin: 12px 0 0;
+  color: var(--text);
+}
+
 .metric-filter {
   border-top: 1px solid var(--line);
   margin: 4px 0 14px;

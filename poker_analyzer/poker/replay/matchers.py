@@ -23,6 +23,7 @@ from poker.metrics.preflop_analysis_9max import (
     positions_except as positions_except_9,
     positions_in_front as positions_in_front_9,
 )
+from poker.metrics.preflop_events import spot_matches_event
 from poker.metrics.when_i_raise import hand_matches_raise_options
 from poker.models import Hand
 
@@ -85,23 +86,31 @@ def _preflop_matches(hand: Hand, options: dict[str, Any], ctx: dict[str, Any]) -
         _option_bool(options.get("allow_call"), True),
     ):
         return False
+    spot = None
     if action == "open_raise":
-        return ctx["extract_open_raise"](hand, hero_pos) is not None
-    if action == "3bet":
+        spot = ctx["extract_open_raise"](hand, hero_pos)
+    elif action == "3bet":
         allowed = ctx["positions_in_front"](hero_pos)
         opener = _as_str(options.get("opener_position")).upper() or (allowed[0] if allowed else "")
-        return bool(opener) and ctx["extract_3bet"](hand, hero_pos, opener) is not None
-    if action == "4bet":
+        if opener:
+            spot = ctx["extract_3bet"](hand, hero_pos, opener)
+    elif action == "4bet":
         allowed = ctx["positions_except"](hero_pos)
         three = _as_str(options.get("threebettor_position")).upper()
         if not three:
             three = "BB" if "BB" in allowed else (allowed[-1] if allowed else "")
-        return bool(three) and ctx["extract_4bet"](hand, hero_pos, three) is not None
-    allowed = ctx["positions_except"](hero_pos)
-    four = _as_str(options.get("fourbettor_position")).upper()
-    if not four:
-        four = "BB" if "BB" in allowed else (allowed[-1] if allowed else "")
-    return bool(four) and ctx["extract_5bet"](hand, hero_pos, four) is not None
+        if three:
+            spot = ctx["extract_4bet"](hand, hero_pos, three)
+    elif action == "5bet":
+        allowed = ctx["positions_except"](hero_pos)
+        four = _as_str(options.get("fourbettor_position")).upper()
+        if not four:
+            four = "BB" if "BB" in allowed else (allowed[-1] if allowed else "")
+        if four:
+            spot = ctx["extract_5bet"](hand, hero_pos, four)
+    if spot is None:
+        return False
+    return spot_matches_event(action, spot, _as_str(options.get("selected_event")))
 
 
 def matcher_for(source: str, options: dict[str, Any] | None) -> Callable[[Hand], bool]:
