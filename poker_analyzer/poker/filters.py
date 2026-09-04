@@ -26,12 +26,12 @@ PRESET_TABLE_FORMATS: tuple[tuple[str, str], ...] = (
 _VALID_TABLE_FORMATS = {TABLE_FORMAT_6MAX, TABLE_FORMAT_9MAX}
 
 _STAKES_RE = re.compile(
-    r"\$?(?P<sb>\d+(?:\.\d+)?)\s*/\s*\$?(?P<bb>\d+(?:\.\d+)?)",
+    r"[$₮]?(?P<sb>\d+(?:\.\d+)?)\s*/\s*[$₮]?(?P<bb>\d+(?:\.\d+)?)",
 )
 
 
 def normalize_stakes(raw: str) -> str | None:
-    """Normalize '$0.05/$0.1' or '0.05/0.1' → '0.05/0.1'."""
+    """Normalize supported currency stakes to a plain ``small/big`` key."""
     if not raw:
         return None
     m = _STAKES_RE.search(raw.replace(" ", ""))
@@ -148,7 +148,13 @@ def file_date_from_name(name: str) -> date | None:
 
 
 def hand_file_date(hand: Hand) -> date | None:
-    return file_date_from_name(hand.source_file)
+    # CoinPoker exports do not use GG's dated filename convention.
+    file_day = file_date_from_name(hand.source_file)
+    if file_day is not None:
+        return file_day
+    if hand.extra.get("site") == "coinpoker":
+        return hand.datetime.date()
+    return None
 
 
 def hand_stakes_key(hand: Hand) -> str | None:
