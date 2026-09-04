@@ -341,6 +341,11 @@ Total pot {currency}24 | Rake {currency}0
                     fourbet_result["hand_details"]["threebettor_call"]["hands"][0]["hand"],
                     "AKs",
                 )
+                self.assertEqual(fourbet_result["threebettor_faced"], 1)
+                self.assertEqual(
+                    fourbet_result["hand_details"]["threebettor_faced"]["hands"][0]["hand"],
+                    "AKs",
+                )
                 self.assertEqual(fourbet_result["faced_5bet"]["count"], 1)
                 self.assertEqual(
                     fourbet_result["hand_details"]["faced_5bet"]["hands"][0]["hand"],
@@ -392,6 +397,11 @@ Total pot {currency}24 | Rake {currency}0
                     fivebet_result["hand_details"]["fourbettor_fold"]["hands"][0]["hand"],
                     "未知",
                 )
+                self.assertEqual(fivebet_result["fourbettor_faced"], 2)
+                self.assertEqual(
+                    fivebet_result["hand_details"]["fourbettor_faced"]["count"],
+                    2,
+                )
 
     def test_actor_detail_counts_match_each_supported_stat(self) -> None:
         names = {"HJ": "Opener", "CO": "Hero"}
@@ -419,7 +429,9 @@ Total pot {currency}24 | Rake {currency}0
         )
         for stat_key, detail in result["hand_details"].items():
             with self.subTest(stat_key=stat_key):
-                self.assertEqual(detail["count"], result[stat_key]["count"])
+                stat = result[stat_key]
+                stat_count = stat["count"] if isinstance(stat, dict) else stat
+                self.assertEqual(detail["count"], stat_count)
                 self.assertEqual(sum(row["count"] for row in detail["hands"]), detail["count"])
         self.assertEqual(
             {row["hand"] for row in result["hand_details"]["opener_call"]["hands"]},

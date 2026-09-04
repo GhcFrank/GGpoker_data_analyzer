@@ -1470,7 +1470,11 @@
       const pot = data.all_fold || {};
       const c4 = data.cold_4bet || {};
       if (data.opener_responded != null) {
-        cells.push({ label: "对手面对 3bet", value: String(data.opener_responded) });
+        cells.push({
+          label: "对手面对 3bet",
+          value: String(data.opener_responded),
+          statKey: "opener_responded",
+        });
       }
       cells.push({ label: "对手弃牌", value: preflopStatValue(ofold), statKey: "opener_fold" });
       cells.push({ label: "对手跟注", value: preflopStatValue(ocall), statKey: "opener_call" });
@@ -1482,7 +1486,11 @@
       const five = data.faced_5bet || {};
       const call = data.threebettor_call || {};
       if (data.threebettor_faced != null) {
-        cells.push({ label: "3bet 者面对 4bet", value: String(data.threebettor_faced) });
+        cells.push({
+          label: "3bet 者面对 4bet",
+          value: String(data.threebettor_faced),
+          statKey: "threebettor_faced",
+        });
       }
       cells.push({ label: "直接收池", value: preflopStatValue(pot) });
       cells.push({ label: "被 5bet", value: preflopStatValue(five), statKey: "faced_5bet" });
@@ -1493,7 +1501,11 @@
       const th = data.theoretical_equity || {};
       const ac = data.actual_winrate || {};
       if (data.fourbettor_faced != null) {
-        cells.push({ label: "4bet 者面对 5bet", value: String(data.fourbettor_faced) });
+        cells.push({
+          label: "4bet 者面对 5bet",
+          value: String(data.fourbettor_faced),
+          statKey: "fourbettor_faced",
+        });
       }
       cells.push({ label: "对方弃牌", value: preflopStatValue(fold), statKey: "fourbettor_fold" });
       cells.push({ label: "对方跟注", value: preflopStatValue(call), statKey: "fourbettor_call" });
