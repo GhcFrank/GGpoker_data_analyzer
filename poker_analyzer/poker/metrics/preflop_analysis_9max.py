@@ -13,6 +13,10 @@ from poker.metrics.preflop_hand_details import (
     first_raising_actor_after as _first_raising_actor_after,
     player_cards as _player_cards,
 )
+from poker.metrics.preflop_events import (
+    build_event_counts as _build_event_counts,
+    spots_for_event as _spots_for_event,
+)
 from poker.models import Action, Hand, HandDataset
 from poker.positions.nine_max import POSITION_ORDER, NINE_MAX_PROFILE, position_map
 
@@ -829,9 +833,14 @@ class PreflopAnalysis9MaxMetric(Metric):
             if spot is not None:
                 spots.append(spot)
         n = len(spots)
-        all_fold_n = sum(1 for s in spots if s.all_fold)
-        threebet_n = sum(1 for s in spots if s.faced_3bet)
-        threebet_hands = [s.threebet_combo for s in spots if s.faced_3bet and s.threebet_combo]
+        event_counts = _build_event_counts("open_raise", spots)
+        all_fold_n = event_counts["all_fold"]
+        threebet_n = event_counts["faced_3bet"]
+        threebet_hands = [
+            s.threebet_combo
+            for s in _spots_for_event("open_raise", spots, "faced_3bet")
+            if s.threebet_combo
+        ]
         return {
             "metric_id": self.id,
             "name": self.name,
@@ -840,6 +849,7 @@ class PreflopAnalysis9MaxMetric(Metric):
             "spot_count": n,
             "all_fold": _stat(all_fold_n, n),
             "faced_3bet": _stat(threebet_n, n),
+            "event_counts": event_counts,
             "hand_details": _build_hand_details({"faced_3bet": threebet_hands}),
             "options": {
                 "hero_position": hero_pos,
@@ -872,17 +882,34 @@ class PreflopAnalysis9MaxMetric(Metric):
                     spots.append(spot)
 
         n = len(spots)
-        opener_n = sum(1 for s in spots if s.opener_acted)
+        event_counts = _build_event_counts("3bet", spots)
+        opener_n = event_counts["opener_responded"]
         hand_details = _build_hand_details(
             {
                 "opener_responded": [
-                    s.opener_combo for s in spots if s.opener_acted and s.opener_combo
+                    s.opener_combo
+                    for s in _spots_for_event("3bet", spots, "opener_responded")
+                    if s.opener_combo
                 ],
-                "opener_fold": [s.opener_combo for s in spots if s.opener_fold and s.opener_combo],
-                "opener_call": [s.opener_combo for s in spots if s.opener_call and s.opener_combo],
-                "opener_4bet": [s.opener_combo for s in spots if s.opener_4bet and s.opener_combo],
+                "opener_fold": [
+                    s.opener_combo
+                    for s in _spots_for_event("3bet", spots, "opener_fold")
+                    if s.opener_combo
+                ],
+                "opener_call": [
+                    s.opener_combo
+                    for s in _spots_for_event("3bet", spots, "opener_call")
+                    if s.opener_combo
+                ],
+                "opener_4bet": [
+                    s.opener_combo
+                    for s in _spots_for_event("3bet", spots, "opener_4bet")
+                    if s.opener_combo
+                ],
                 "cold_4bet": [
-                    s.cold_4bet_combo for s in spots if s.cold_4bet and s.cold_4bet_combo
+                    s.cold_4bet_combo
+                    for s in _spots_for_event("3bet", spots, "cold_4bet")
+                    if s.cold_4bet_combo
                 ],
             }
         )
@@ -894,11 +921,12 @@ class PreflopAnalysis9MaxMetric(Metric):
             "opener_position": opener_pos or None,
             "spot_count": n,
             "opener_responded": opener_n,
-            "opener_fold": _stat(sum(1 for s in spots if s.opener_fold), opener_n),
-            "opener_call": _stat(sum(1 for s in spots if s.opener_call), opener_n),
-            "opener_4bet": _stat(sum(1 for s in spots if s.opener_4bet), opener_n),
-            "all_fold": _stat(sum(1 for s in spots if s.all_fold), n),
-            "cold_4bet": _stat(sum(1 for s in spots if s.cold_4bet), n),
+            "opener_fold": _stat(event_counts["opener_fold"], opener_n),
+            "opener_call": _stat(event_counts["opener_call"], opener_n),
+            "opener_4bet": _stat(event_counts["opener_4bet"], opener_n),
+            "all_fold": _stat(event_counts["all_fold"], n),
+            "cold_4bet": _stat(event_counts["cold_4bet"], n),
+            "event_counts": event_counts,
             "hand_details": hand_details,
             "options": {
                 "hero_position": hero_pos,
@@ -932,9 +960,18 @@ class PreflopAnalysis9MaxMetric(Metric):
                     spots.append(spot)
 
         n = len(spots)
-        faced_n = sum(1 for s in spots if s.threebettor_faced)
-        call_hands = [s.call_combo for s in spots if s.threebettor_call and s.call_combo]
-        fivebet_hands = [s.fivebet_combo for s in spots if s.faced_5bet and s.fivebet_combo]
+        event_counts = _build_event_counts("4bet", spots)
+        faced_n = event_counts["threebettor_faced"]
+        call_hands = [
+            s.call_combo
+            for s in _spots_for_event("4bet", spots, "threebettor_call")
+            if s.call_combo
+        ]
+        fivebet_hands = [
+            s.fivebet_combo
+            for s in _spots_for_event("4bet", spots, "faced_5bet")
+            if s.fivebet_combo
+        ]
         return {
             "metric_id": self.id,
             "name": self.name,
@@ -943,17 +980,18 @@ class PreflopAnalysis9MaxMetric(Metric):
             "threebettor_position": three_pos or None,
             "spot_count": n,
             "threebettor_faced": faced_n,
-            "all_fold": _stat(sum(1 for s in spots if s.all_fold), n),
-            "faced_5bet": _stat(sum(1 for s in spots if s.faced_5bet), n),
-            "threebettor_call": _stat(sum(1 for s in spots if s.threebettor_call), faced_n),
+            "all_fold": _stat(event_counts["all_fold"], n),
+            "faced_5bet": _stat(event_counts["faced_5bet"], n),
+            "threebettor_call": _stat(event_counts["threebettor_call"], faced_n),
+            "event_counts": event_counts,
             "call_hands": _combo_table(call_hands),
             "call_hand_count": len(call_hands),
             "hand_details": _build_hand_details(
                 {
                     "threebettor_faced": [
                         s.threebettor_combo
-                        for s in spots
-                        if s.threebettor_faced and s.threebettor_combo
+                        for s in _spots_for_event("4bet", spots, "threebettor_faced")
+                        if s.threebettor_combo
                     ],
                     "faced_5bet": fivebet_hands,
                     "threebettor_call": call_hands,
@@ -991,9 +1029,18 @@ class PreflopAnalysis9MaxMetric(Metric):
                     spots.append(spot)
 
         n = len(spots)
-        faced_n = sum(1 for s in spots if s.fourbettor_faced)
-        call_hands = [s.call_combo for s in spots if s.fourbettor_call and s.call_combo]
-        fold_hands = [s.fold_combo for s in spots if s.fourbettor_fold and s.fold_combo]
+        event_counts = _build_event_counts("5bet", spots)
+        faced_n = event_counts["fourbettor_faced"]
+        call_hands = [
+            s.call_combo
+            for s in _spots_for_event("5bet", spots, "fourbettor_call")
+            if s.call_combo
+        ]
+        fold_hands = [
+            s.fold_combo
+            for s in _spots_for_event("5bet", spots, "fourbettor_fold")
+            if s.fold_combo
+        ]
         theor = [s.theoretical_equity for s in spots if s.theoretical_equity is not None]
         actual = [s.actual_share for s in spots if s.actual_share is not None]
         return {
@@ -1004,8 +1051,9 @@ class PreflopAnalysis9MaxMetric(Metric):
             "fourbettor_position": four_pos or None,
             "spot_count": n,
             "fourbettor_faced": faced_n,
-            "fourbettor_fold": _stat(sum(1 for s in spots if s.fourbettor_fold), faced_n),
-            "fourbettor_call": _stat(sum(1 for s in spots if s.fourbettor_call), faced_n),
+            "fourbettor_fold": _stat(event_counts["fourbettor_fold"], faced_n),
+            "fourbettor_call": _stat(event_counts["fourbettor_call"], faced_n),
+            "event_counts": event_counts,
             "theoretical_equity": {
                 "pct": round(100.0 * (sum(theor) / len(theor)), 2) if theor else None,
                 "count": len(theor),
@@ -1020,8 +1068,8 @@ class PreflopAnalysis9MaxMetric(Metric):
                 {
                     "fourbettor_faced": [
                         s.fourbettor_combo
-                        for s in spots
-                        if s.fourbettor_faced and s.fourbettor_combo
+                        for s in _spots_for_event("5bet", spots, "fourbettor_faced")
+                        if s.fourbettor_combo
                     ],
                     "fourbettor_fold": fold_hands,
                     "fourbettor_call": call_hands,

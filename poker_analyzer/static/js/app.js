@@ -117,6 +117,8 @@
     filterDefaults: null,
     wirRequestId: 0,
     pfRequestId: 0,
+    pfSelectedEvent: null,
+    pfSelectedEventLabel: "",
     pfMatrixRequestId: 0,
     pfMatrixCells: null,
     pf4betMatrixRequestId: 0,
@@ -665,6 +667,11 @@
   function onTableFormatChange() {
     refreshStakesGroup();
     refreshPreflopPositionUI();
+    resetPreflopStudySelection();
+    const sample = $("#preflopVisualizationSample");
+    if (sample) sample.hidden = true;
+    const replayButton = $("#pfReplayBtn");
+    if (replayButton) replayButton.disabled = true;
     state.analyzed = false;
     $("#filterStatus").classList.remove("is-ok");
     $("#filterStatus").classList.add("is-ready");
@@ -1083,6 +1090,7 @@
     const requestId = ++state.pfRequestId;
     const filter = readFilter();
     const options = readPreflopOptions();
+    resetPreflopStudySelection();
     const stats = $("#preflopStats");
     if (stats) {
       stats.innerHTML = `
@@ -1092,7 +1100,10 @@
         </div>
       `;
     }
-    hidePreflopHands();
+    const sample = $("#preflopVisualizationSample");
+    if (sample) sample.hidden = true;
+    const replayButton = $("#pfReplayBtn");
+    if (replayButton) replayButton.disabled = true;
     const data = await fetchJSON(`/api/metrics/${preflopMetricId()}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1401,17 +1412,13 @@
     const tbody = document.querySelector("#preflopHandsTable tbody");
     if (wrap) wrap.hidden = true;
     if (tbody) tbody.innerHTML = "";
-    document.querySelectorAll("#preflopStats .pf-stat-detail").forEach((button) => {
-      button.classList.remove("is-active");
-      button.setAttribute("aria-expanded", "false");
-    });
   }
 
-  function showPreflopHands(data, statKey, label, button) {
+  function showPreflopHands(data, eventKey, label) {
     const wrap = $("#preflopHandsWrap");
     const title = $("#preflopHandsTitle");
     const hint = $("#preflopHandsHint");
-    const detail = data.hand_details && data.hand_details[statKey];
+    const detail = data.hand_details && data.hand_details[eventKey];
     if (!wrap || !detail) return;
     hidePreflopHands();
     const count = detail.count || 0;
@@ -1423,10 +1430,60 @@
     }
     renderPreflopMatrixHandTable("#preflopHandsTable", detail.hands);
     wrap.hidden = false;
-    if (button) {
-      button.classList.add("is-active");
-      button.setAttribute("aria-expanded", "true");
+  }
+
+  function resetPreflopStudySelection() {
+    state.pfSelectedEvent = null;
+    state.pfSelectedEventLabel = "";
+    hidePreflopHands();
+    document.querySelectorAll("#preflopStats .pf-stat-event").forEach((button) => {
+      button.classList.remove("is-active");
+      button.setAttribute("aria-pressed", "false");
+    });
+  }
+
+  function updatePreflopStudyView(data) {
+    if (!data) return;
+    const eventKey = state.pfSelectedEvent;
+    const eventCounts = data.event_counts || {};
+    const count = eventKey ? Number(eventCounts[eventKey] || 0) : Number(data.spot_count || 0);
+    document.querySelectorAll("#preflopStats .pf-stat-event").forEach((button) => {
+      const active = button.dataset.eventKey === eventKey;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+
+    hidePreflopHands();
+    const detail = eventKey && data.hand_details && data.hand_details[eventKey];
+    if (detail && detail.count > 0) {
+      showPreflopHands(data, eventKey, state.pfSelectedEventLabel);
     }
+
+    const sample = $("#preflopVisualizationSample");
+    if (sample) {
+      sample.hidden = false;
+      sample.textContent = eventKey
+        ? `当前可视化样本：${count} 手 · 已筛选：${state.pfSelectedEventLabel}（再次点击取消）`
+        : `当前可视化样本：${count} 手 · 全部基础样本`;
+    }
+    const replayButton = $("#pfReplayBtn");
+    if (replayButton) {
+      replayButton.disabled = count <= 0;
+      replayButton.title = eventKey
+        ? `查看${state.pfSelectedEventLabel}的 ${count} 手完整牌局`
+        : `查看全部 ${count} 手基础样本`;
+    }
+  }
+
+  function togglePreflopStudyEvent(data, eventKey, label) {
+    if (state.pfSelectedEvent === eventKey) {
+      state.pfSelectedEvent = null;
+      state.pfSelectedEventLabel = "";
+    } else {
+      state.pfSelectedEvent = eventKey;
+      state.pfSelectedEventLabel = label;
+    }
+    updatePreflopStudyView(data);
   }
 
   function preflopStatValue(stat, countLabel) {
@@ -1438,7 +1495,6 @@
     const empty = $("#preflopEmpty");
     const stats = $("#preflopStats");
     const action = data.action || "open_raise";
-
     if (!data.spot_count) {
       empty.hidden = false;
       if (action === "3bet" && !((data.options && data.options.positions_in_front) || []).length) {
@@ -1452,7 +1508,8 @@
           <span class="value">0</span>
         </div>
       `;
-      hidePreflopHands();
+      resetPreflopStudySelection();
+      updatePreflopStudyView(data);
       return;
     }
 
@@ -1461,8 +1518,8 @@
     if (action === "open_raise") {
       const fold = data.all_fold || {};
       const three = data.faced_3bet || {};
-      cells.push({ label: "直接收池", value: preflopStatValue(fold) });
-      cells.push({ label: "被 3bet", value: preflopStatValue(three), statKey: "faced_3bet" });
+      cells.push({ label: "直接收池", value: preflopStatValue(fold), eventKey: "all_fold" });
+      cells.push({ label: "被 3bet", value: preflopStatValue(three), eventKey: "faced_3bet" });
     } else if (action === "3bet") {
       const ofold = data.opener_fold || {};
       const ocall = data.opener_call || {};
@@ -1473,14 +1530,14 @@
         cells.push({
           label: "对手面对 3bet",
           value: String(data.opener_responded),
-          statKey: "opener_responded",
+          eventKey: "opener_responded",
         });
       }
-      cells.push({ label: "对手弃牌", value: preflopStatValue(ofold), statKey: "opener_fold" });
-      cells.push({ label: "对手跟注", value: preflopStatValue(ocall), statKey: "opener_call" });
-      cells.push({ label: "对手 4bet", value: preflopStatValue(o4), statKey: "opener_4bet" });
-      cells.push({ label: "直接收池", value: preflopStatValue(pot) });
-      cells.push({ label: "后位冷 4bet", value: preflopStatValue(c4), statKey: "cold_4bet" });
+      cells.push({ label: "对手弃牌", value: preflopStatValue(ofold), eventKey: "opener_fold" });
+      cells.push({ label: "对手跟注", value: preflopStatValue(ocall), eventKey: "opener_call" });
+      cells.push({ label: "对手 4bet", value: preflopStatValue(o4), eventKey: "opener_4bet" });
+      cells.push({ label: "直接收池", value: preflopStatValue(pot), eventKey: "all_fold" });
+      cells.push({ label: "后位冷 4bet", value: preflopStatValue(c4), eventKey: "cold_4bet" });
     } else if (action === "4bet") {
       const pot = data.all_fold || {};
       const five = data.faced_5bet || {};
@@ -1489,12 +1546,12 @@
         cells.push({
           label: "3bet 者面对 4bet",
           value: String(data.threebettor_faced),
-          statKey: "threebettor_faced",
+          eventKey: "threebettor_faced",
         });
       }
-      cells.push({ label: "直接收池", value: preflopStatValue(pot) });
-      cells.push({ label: "被 5bet", value: preflopStatValue(five), statKey: "faced_5bet" });
-      cells.push({ label: "3bet 者跟注", value: preflopStatValue(call), statKey: "threebettor_call" });
+      cells.push({ label: "直接收池", value: preflopStatValue(pot), eventKey: "all_fold" });
+      cells.push({ label: "被 5bet", value: preflopStatValue(five), eventKey: "faced_5bet" });
+      cells.push({ label: "3bet 者跟注", value: preflopStatValue(call), eventKey: "threebettor_call" });
     } else if (action === "5bet") {
       const fold = data.fourbettor_fold || {};
       const call = data.fourbettor_call || {};
@@ -1504,22 +1561,23 @@
         cells.push({
           label: "4bet 者面对 5bet",
           value: String(data.fourbettor_faced),
-          statKey: "fourbettor_faced",
+          eventKey: "fourbettor_faced",
         });
       }
-      cells.push({ label: "对方弃牌", value: preflopStatValue(fold), statKey: "fourbettor_fold" });
-      cells.push({ label: "对方跟注", value: preflopStatValue(call), statKey: "fourbettor_call" });
+      cells.push({ label: "对方弃牌", value: preflopStatValue(fold), eventKey: "fourbettor_fold" });
+      cells.push({ label: "对方跟注", value: preflopStatValue(call), eventKey: "fourbettor_call" });
       cells.push({ label: "理论胜率", value: preflopStatValue(th, `${th.count || 0} 手已知牌`) });
       cells.push({ label: "实际胜率", value: preflopStatValue(ac) });
     }
-    const details = data.hand_details || {};
+    const eventCounts = data.event_counts || {};
     stats.innerHTML = cells
       .map(
-        ({ label, value, statKey }) => {
-          const expandable = statKey && details[statKey] && details[statKey].count > 0;
-          const tag = expandable ? "button" : "div";
-          const attrs = expandable
-            ? ` type="button" class="stat pf-stat-detail" data-stat-key="${statKey}" aria-expanded="false" title="查看${label}手牌分布"`
+        ({ label, value, eventKey }) => {
+          const selectable = eventKey && Object.prototype.hasOwnProperty.call(eventCounts, eventKey);
+          const disabled = selectable && Number(eventCounts[eventKey] || 0) <= 0;
+          const tag = selectable ? "button" : "div";
+          const attrs = selectable
+            ? ` type="button" class="stat pf-stat-event" data-event-key="${eventKey}" aria-pressed="false" title="筛选${label}样本"${disabled ? " disabled" : ""}`
             : ` class="stat"`;
           return `
         <${tag}${attrs}>
@@ -1529,17 +1587,13 @@
         }
       )
       .join("");
-    hidePreflopHands();
-    stats.querySelectorAll(".pf-stat-detail").forEach((button) => {
+    stats.querySelectorAll(".pf-stat-event").forEach((button) => {
       button.addEventListener("click", () => {
-        if (button.classList.contains("is-active")) {
-          hidePreflopHands();
-          return;
-        }
         const label = button.querySelector(".label").textContent;
-        showPreflopHands(data, button.dataset.statKey, label, button);
+        togglePreflopStudyEvent(data, button.dataset.eventKey, label);
       });
     });
+    updatePreflopStudyView(data);
   }
 
   function renderWhenIRaise(data) {
@@ -1797,9 +1851,11 @@
     const pfReplayBtn = $("#pfReplayBtn");
     if (pfReplayBtn) {
       pfReplayBtn.addEventListener("click", () => {
+        const options = { ...readPreflopOptions(), table_format: selectedTableFormat() };
+        if (state.pfSelectedEvent) options.selected_event = state.pfSelectedEvent;
         window.PokerReplay.open(preflopReplaySource(), () => ({
           filter: readFilter(),
-          options: { ...readPreflopOptions(), table_format: selectedTableFormat() },
+          options,
         }));
       });
     }
