@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{ title }}</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=load-toast-1" />
+  <link rel="stylesheet" href="/static/css/style.css?v=actor-details-1" />
   <link rel="stylesheet" href="/static/css/replay.css" />
   <script src="/static/js/chart.umd.min.js"></script>
 </head>
@@ -192,7 +192,7 @@
             <h2>翻前分析</h2>
             <p class="panel-desc">
               使用上方数据筛选后的手牌。大小盲默认入池；第一个加注到 ≥2bb 的人是 open raise，之后依次是 3bet / 4bet / 5bet。
-              跟注手牌按 AKs / AKo 区分同花；摊牌看不到则记为未知。
+              对手手牌按 AKs / AKo 区分同花；摊牌看不到则记为未知。
             </p>
           </div>
           <div class="panel-head-aside">
@@ -231,7 +231,7 @@
 
         <p class="empty-hint" id="preflopEmpty" hidden>当前条件下没有符合的翻前样本。</p>
         <div class="hand-dist" id="preflopHandsWrap" hidden>
-          <h3 class="hand-dist-title">跟注手牌分布</h3>
+          <h3 class="hand-dist-title" id="preflopHandsTitle">对手手牌分布</h3>
           <p class="hand-dist-hint" id="preflopHandsHint"></p>
           <div class="hand-dist-table-wrap">
             <table class="hand-dist-table" id="preflopHandsTable">
@@ -508,6 +508,6 @@
 
   <script src="/static/js/replay.js"></script>
   <script src="/static/js/tools.js"></script>
-  <script src="/static/js/app.js?v=load-toast-1"></script>
+  <script src="/static/js/app.js?v=actor-details-1"></script>
 </body>
 </html>

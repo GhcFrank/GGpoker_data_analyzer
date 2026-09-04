@@ -538,6 +538,40 @@ h1 {
 .stat .value.pos { color: var(--accent); }
 .stat .value.neg { color: var(--danger); }
 
+.pf-stat-detail {
+  appearance: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+  padding-right: 32px;
+}
+
+.pf-stat-detail::after {
+  content: "⌄";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  color: var(--muted);
+  transform: translateY(-50%);
+}
+
+.pf-stat-detail:hover,
+.pf-stat-detail.is-active {
+  border-color: var(--accent);
+  background: rgba(61, 155, 122, 0.14);
+}
+
+.pf-stat-detail.is-active::after {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.pf-stat-detail:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .metric-filter {
   border-top: 1px solid var(--line);
   margin: 4px 0 14px;
