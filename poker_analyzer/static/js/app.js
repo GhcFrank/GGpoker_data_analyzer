@@ -266,11 +266,7 @@
       name: "wir-size",
       checkedIds: new Set(wirSizeOpts.map((o) => o.id)),
     });
-    fillChipGroup($("#wirPositionGroup"), wirPositionOpts, {
-      multi: true,
-      name: "wir-position",
-      checkedIds: new Set(wirPositionOpts.map((o) => o.id)),
-    });
+    syncWhenIRaisePositionUI();
     fillFlopTextureControls($("#wirFlopTextureGroup"));
     fillTurnFlopLineControls($("#wirTurnFlopLineGroup"));
     const flopDetailEnable = $("#wirFlopDetailEnable");
@@ -282,6 +278,7 @@
     const host = $("#whenIRaiseFilters");
     host.addEventListener("change", (event) => {
       const target = event.target;
+      if (target?.name === "wir-players") syncWhenIRaisePositionUI();
       if (!target) {
         scheduleWhenIRaiseRefresh();
         return;
@@ -608,7 +605,36 @@
     });
   }
 
+  function whenIRaiseExactPositionMode() {
+    const players = [...document.querySelectorAll("#wirPlayersGroup input:checked")];
+    return selectedTableFormat() === "6max" && players.length === 1 && players[0].value === "2";
+  }
+
+  function syncWhenIRaisePositionUI() {
+    const exact = whenIRaiseExactPositionMode();
+    const host = $("#whenIRaiseFilters");
+    const mode = exact ? "exact" : "relative";
+    if (host.dataset.positionMode !== mode) {
+      const groups = exact
+        ? [["#wirHeroPositionGroup", "wir-hero-position"], ["#wirOpponentPositionGroup", "wir-opponent-position"]]
+        : [["#wirPositionGroup", "wir-position"]];
+      const positions = exact ? TABLE_FORMAT_CONFIG["6max"].positions : wirPositionOpts;
+      for (const [selector, name] of groups) {
+        fillChipGroup($(selector), positions, {
+          multi: true,
+          name,
+          checkedIds: new Set(positions.map((o) => o.id)),
+        });
+      }
+      host.dataset.positionMode = mode;
+    }
+    $("#wirRelativePositionRow").hidden = exact;
+    $("#wirHeroPositionRow").hidden = !exact;
+    $("#wirOpponentPositionRow").hidden = !exact;
+  }
+
   function readWhenIRaiseOptions() {
+    syncWhenIRaisePositionUI();
     const flop_detail = isFlopDetailEnabled();
     const turn_detail = isTurnDetailEnabled();
     let streets = [...document.querySelectorAll("#wirStreetGroup input:checked")].map(
@@ -630,17 +656,19 @@
     const sizes = [...document.querySelectorAll("#wirSizeGroup input:checked")].map(
       (el) => el.value
     );
-    const positions = [...document.querySelectorAll("#wirPositionGroup input:checked")].map(
-      (el) => el.value
-    );
     const options = {
       streets,
       flop_detail,
       turn_detail,
       player_counts,
       sizes,
-      positions,
     };
+    if (whenIRaiseExactPositionMode()) {
+      options.hero_positions = [...document.querySelectorAll("#wirHeroPositionGroup input:checked")].map((el) => el.value);
+      options.opponent_positions = [...document.querySelectorAll("#wirOpponentPositionGroup input:checked")].map((el) => el.value);
+    } else {
+      options.positions = [...document.querySelectorAll("#wirPositionGroup input:checked")].map((el) => el.value);
+    }
     if (flop_detail || turn_detail) {
       const flop_textures = {};
       document.querySelectorAll("#wirFlopTextureGroup .flop-tex-row").forEach((row) => {
@@ -666,6 +694,7 @@
   }
 
   function onTableFormatChange() {
+    syncWhenIRaisePositionUI();
     refreshStakesGroup();
     refreshPreflopPositionUI();
     resetPreflopStudySelection();
@@ -769,6 +798,7 @@
     for (const input of document.querySelectorAll("#tableFormatGroup input[type=radio]")) {
       input.checked = false;
     }
+    syncWhenIRaisePositionUI();
     refreshStakesGroup();
     refreshPreflopPositionUI();
     for (const input of document.querySelectorAll("#stakesGroup input[type=checkbox]:not(:disabled)")) {
@@ -886,6 +916,7 @@
       );
       if (tf && !tf.disabled) {
         tf.checked = true;
+        syncWhenIRaisePositionUI();
         refreshStakesGroup();
         refreshPreflopPositionUI();
       }
