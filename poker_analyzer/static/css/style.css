@@ -538,6 +538,56 @@ h1 {
 .stat .value.pos { color: var(--accent); }
 .stat .value.neg { color: var(--danger); }
 
+.wir-showdown {
+  margin-top: 20px;
+}
+
+.wir-showdown h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.wir-showdown .panel-desc {
+  max-width: none;
+}
+
+.wir-showdown .hand-matrix {
+  margin-top: 12px;
+}
+
+.wir-hand-grid {
+  width: 100%;
+  min-width: 780px;
+  table-layout: fixed;
+  border-spacing: 3px;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.wir-hand-grid td {
+  height: 68px;
+  padding: 5px 2px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg2);
+  color: var(--muted);
+}
+
+.wir-hand-grid .has-hands {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg2));
+  color: var(--text);
+}
+
+.wir-hand-grid span {
+  display: block;
+}
+
+.wir-hand-label {
+  font-weight: 600;
+}
+
 .pf-stat-event {
   appearance: none;
   color: inherit;
