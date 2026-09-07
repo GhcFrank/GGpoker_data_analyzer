@@ -128,10 +128,10 @@
           <div>
             <h2>When I Raise</h2>
             <p class="panel-desc">统计 Hero 下注/加注后，对手全弃牌、跟注、再加注的频率。默认 General（条件全选）等于不限制该轴。</p>
+            <p class="panel-desc">Size 定义：Small：(0%, 40%]；Medium：(40%, 60%]；Large：(60%, 99%]；Overbet：&gt;99%。</p>
           </div>
           <div class="panel-head-aside">
             <button type="button" class="btn ghost" id="wirReplayBtn">数据可视化</button>
-            <div class="stat-row" id="whenIRaiseStats"></div>
           </div>
         </div>
 
@@ -178,7 +178,19 @@
           </div>
         </div>
 
+        <div class="stat-row" id="whenIRaiseStats"></div>
         <p class="empty-hint" id="whenIRaiseEmpty" hidden>当前条件下没有 Hero 下注/加注样本。</p>
+
+        <section class="wir-showdown" aria-labelledby="wirShowdownTitle">
+          <h3 id="wirShowdownTitle">对手亮牌手牌分布</h3>
+          <p class="panel-desc">仅统计当前筛选条件下最终能看到的对手底牌；百分比以“涉及手数”为分母。未亮牌的手牌不进入任何格子。</p>
+          <p class="panel-desc" id="wirShowdownStatus" role="status">对手亮牌手牌分布目前仅支持 2 人 pot。请选择 Player Count = 2人。</p>
+          <div class="hand-matrix" id="wirShowdownWrap" hidden tabindex="0" role="region" aria-label="对手亮牌手牌分布，可横向滚动">
+            <table class="wir-hand-grid" aria-label="对手亮牌 13×13 起手牌分布">
+              <tbody id="wirShowdownCells"></tbody>
+            </table>
+          </div>
+        </section>
       </section>
 
       <section

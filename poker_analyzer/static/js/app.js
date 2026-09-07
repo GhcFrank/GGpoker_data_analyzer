@@ -85,9 +85,10 @@
     { id: "3+", label: "2人以上" },
   ];
   const wirSizeOpts = [
-    { id: "33", label: "33% pot" },
-    { id: "66", label: "66% pot" },
-    { id: "110", label: "110% pot" },
+    { id: "small", label: "Small" },
+    { id: "medium", label: "Medium" },
+    { id: "large", label: "Large" },
+    { id: "overbet", label: "Overbet" },
   ];
   const wirPositionOpts = [
     { id: "IP", label: "IP" },
@@ -991,6 +992,7 @@
     const requestId = ++state.wirRequestId;
     const filter = readFilter();
     const options = readWhenIRaiseOptions();
+    renderWhenIRaiseShowdown(null, options.player_counts.length === 1 && options.player_counts[0] === "2");
     const stats = $("#whenIRaiseStats");
     if (stats) {
       stats.innerHTML = `
@@ -1596,7 +1598,34 @@
     updatePreflopStudyView(data);
   }
 
+  function renderWhenIRaiseShowdown(grid, loading = false) {
+    const wrap = $("#wirShowdownWrap");
+    const cells = $("#wirShowdownCells");
+    const status = $("#wirShowdownStatus");
+    wrap.hidden = !grid?.supported;
+    cells.innerHTML = "";
+    if (!grid?.supported) {
+      status.textContent = loading
+        ? "对手亮牌手牌分布计算中…"
+        : "对手亮牌手牌分布目前仅支持 2 人 pot。请选择 Player Count = 2人。";
+      return;
+    }
+    status.textContent = `已知对手手牌：${grid.revealed_hands} / ${grid.total_hands}`;
+    cells.innerHTML = Array.from({ length: 13 }, (_, row) => {
+      const columns = grid.cells.slice(row * 13, row * 13 + 13).map((cell) => `
+        <td class="${cell.count > 0 ? "has-hands" : ""}">
+          <span class="wir-hand-label">${cell.hand}</span>
+          ${cell.count > 0
+            ? `<span>${cell.count}</span><span>${fmtPct(cell.pct)}</span>`
+            : "<span>—</span>"}
+        </td>
+      `).join("");
+      return `<tr>${columns}</tr>`;
+    }).join("");
+  }
+
   function renderWhenIRaise(data) {
+    renderWhenIRaiseShowdown(data.opponent_showdown_grid);
     const empty = $("#whenIRaiseEmpty");
     const stats = $("#whenIRaiseStats");
 

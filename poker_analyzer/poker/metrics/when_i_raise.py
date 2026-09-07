@@ -4,20 +4,26 @@ from dataclasses import dataclass
 from typing import Any, Iterable
 
 from poker.board_texture import FLOP_FILTER_KEYS, flop_texture_matches
+from poker.equity import RANK_ORDER, UNKNOWN_COMBO, hole_combo_label
 from poker.metrics.base import Metric, register
+from poker.metrics.preflop_hand_details import player_cards
 from poker.models import Action, Hand, HandDataset
 
 STREETS = ("preflop", "flop", "turn", "river")
 POSTFLOP_STREETS = frozenset({"flop", "turn", "river"})
 TURN_DETAIL_STREETS = frozenset({"turn", "river"})
 TURN_DETAIL_FLOP_LINES = frozenset({"flop_checkcheck", "flop_call", "flop_raise"})
-SIZE_TARGETS: dict[str, float] = {"33": 33.0, "66": 66.0, "110": 110.0}
-SIZE_TOLERANCE_PP = 10.0  # absolute percentage points
+SIZE_IDS = ("small", "medium", "large", "overbet")
 PLAYER_COUNT_ALL = {"2", "3+"}
 POSITION_ALL = {"IP", "OOP", "OTHER"}
-SIZE_ALL = set(SIZE_TARGETS)
+SIZE_ALL = set(SIZE_IDS)
 FLOP_FILTER_ALL = set(FLOP_FILTER_KEYS)
 STREET_ALL = set(STREETS)
+SHOWDOWN_HAND_CLASSES = tuple(
+    hole_combo_label((f"{row}c", f"{col}{'c' if i < j else 'd'}"))
+    for i, row in enumerate(reversed(RANK_ORDER))
+    for j, col in enumerate(reversed(RANK_ORDER))
+)
 
 
 @dataclass
@@ -341,11 +347,12 @@ def _size_matches(size_pct: float, selected: list[str]) -> bool:
         return False
     if chosen == SIZE_ALL:
         return True
-    for key in chosen:
-        target = SIZE_TARGETS[key]
-        if abs(size_pct - target) <= SIZE_TOLERANCE_PP:
-            return True
-    return False
+    return (
+        ("small" in chosen and 0 < size_pct <= 40)
+        or ("medium" in chosen and 40 < size_pct <= 60)
+        or ("large" in chosen and 60 < size_pct <= 99)
+        or ("overbet" in chosen and size_pct > 99)
+    )
 
 
 def _spot_matches(
@@ -428,6 +435,33 @@ def hand_matches_raise_options(hand: Hand, options: dict[str, Any] | None) -> bo
     )
 
 
+def _heads_up_revealed_combo(hand: Hand) -> str | None:
+    """Resolve cards only after a hand has a matching heads-up raise spot.
+
+    Active players only leave via folds. Thus every heads-up Hero aggression
+    in a hand, including the matching spots, must face the same opponent.
+    One pass over normalized actions preserves RaiseSpot and its extraction.
+    """
+    active = set(hand.seat_names.values())
+    if len(active) != len(hand.seat_names):
+        return None  # Duplicate player names cannot identify a unique seat.
+    opponents: set[str] = set()
+    for action in hand.actions:
+        if (
+            action.is_hero and action.action in ("bet", "raise")
+            and action.pot_before > 0 and "Hero" in active and len(active) == 2
+        ):
+            if action.player != "Hero":
+                return None
+            opponents.update(active - {"Hero"})
+        if action.action == "fold":
+            active.discard(action.player)
+    if len(opponents) != 1:
+        return None
+    combo = hole_combo_label(player_cards(hand, next(iter(opponents))))
+    return None if combo == UNKNOWN_COMBO else combo
+
+
 @register
 class WhenIRaiseMetric(Metric):
     """Frequency of fold / call / reraise when Hero bets or raises."""
@@ -441,6 +475,8 @@ class WhenIRaiseMetric(Metric):
         opts = options or {}
         spots: list[RaiseSpot] = []
         hands_with_spot = 0
+        heads_up_grid = _as_str_list(opts.get("player_counts")) == ["2"]
+        revealed_counts: dict[str, int] = {}
 
         turn_detail = _truthy(opts.get("turn_detail"))
 
@@ -453,6 +489,10 @@ class WhenIRaiseMetric(Metric):
             ]
             if hand_spots:
                 hands_with_spot += 1
+                if heads_up_grid:
+                    combo = _heads_up_revealed_combo(hand)
+                    if combo is not None:
+                        revealed_counts[combo] = revealed_counts.get(combo, 0) + 1
             spots.extend(hand_spots)
 
         n = len(spots)
@@ -468,6 +508,22 @@ class WhenIRaiseMetric(Metric):
         streets = _selected_streets(opts)
         flop_detail = _truthy(opts.get("flop_detail"))
         turn_detail = _truthy(opts.get("turn_detail"))
+        opponent_showdown_grid: dict[str, Any] = {"supported": False, "reason": "heads_up_only"}
+        if heads_up_grid:
+            opponent_showdown_grid = {
+                "supported": True,
+                "total_hands": hands_with_spot,
+                "revealed_hands": sum(revealed_counts.values()),
+                "cells": [
+                    {
+                        "hand": label,
+                        "count": revealed_counts.get(label, 0),
+                        "pct": round(100.0 * revealed_counts.get(label, 0) / hands_with_spot, 2)
+                        if hands_with_spot else 0.0,
+                    }
+                    for label in SHOWDOWN_HAND_CLASSES
+                ],
+            }
         return {
             "metric_id": self.id,
             "name": self.name,
@@ -476,6 +532,7 @@ class WhenIRaiseMetric(Metric):
             "all_fold": {"count": all_fold_n, "pct": pct(all_fold_n)},
             "call": {"count": call_n, "pct": pct(call_n)},
             "reraise": {"count": reraise_n, "pct": pct(reraise_n)},
+            "opponent_showdown_grid": opponent_showdown_grid,
             "options": {
                 "streets": sorted(streets) if streets is not None else ["ALL"],
                 "flop_detail": flop_detail,
@@ -484,7 +541,7 @@ class WhenIRaiseMetric(Metric):
                 if turn_detail
                 else [],
                 "player_counts": _as_str_list(opts.get("player_counts")) or sorted(PLAYER_COUNT_ALL),
-                "sizes": _as_str_list(opts.get("sizes")) or sorted(SIZE_ALL, key=lambda x: float(x)),
+                "sizes": _as_str_list(opts.get("sizes")) or list(SIZE_IDS),
                 "positions": _as_str_list(opts.get("positions")) or sorted(POSITION_ALL),
                 "flop_textures": _parse_flop_texture_constraints(opts.get("flop_textures"))
                 if flop_detail or turn_detail
