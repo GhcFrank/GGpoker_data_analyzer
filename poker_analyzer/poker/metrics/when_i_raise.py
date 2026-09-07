@@ -5,9 +5,11 @@ from typing import Any, Iterable
 
 from poker.board_texture import FLOP_FILTER_KEYS, flop_texture_matches
 from poker.equity import RANK_ORDER, UNKNOWN_COMBO, hole_combo_label
+from poker.filters import hand_table_format
 from poker.metrics.base import Metric, register
 from poker.metrics.preflop_hand_details import player_cards
 from poker.models import Action, Hand, HandDataset
+from poker.positions.six_max import POSITION_ORDER, position_map
 
 STREETS = ("preflop", "flop", "turn", "river")
 POSTFLOP_STREETS = frozenset({"flop", "turn", "river"})
@@ -16,6 +18,7 @@ TURN_DETAIL_FLOP_LINES = frozenset({"flop_checkcheck", "flop_call", "flop_raise"
 SIZE_IDS = ("small", "medium", "large", "overbet")
 PLAYER_COUNT_ALL = {"2", "3+"}
 POSITION_ALL = {"IP", "OOP", "OTHER"}
+EXACT_POSITION_ALL = set(POSITION_ORDER)
 SIZE_ALL = set(SIZE_IDS)
 FLOP_FILTER_ALL = set(FLOP_FILTER_KEYS)
 STREET_ALL = set(STREETS)
@@ -36,6 +39,8 @@ class RaiseSpot:
     has_call: bool
     has_reraise: bool
     flop_cards: tuple[str, ...] = ()
+    hero_position: str | None = None
+    opponent_position: str | None = None
 
 
 def _seat_order_clockwise(seats: Iterable[int], start_seat: int) -> list[int]:
@@ -157,6 +162,7 @@ def _response_flags(hand: Hand, raise_index: int) -> tuple[bool, bool, bool]:
 def extract_hero_raise_spots(hand: Hand) -> list[RaiseSpot]:
     """Each Hero bet or raise that faces at least one opponent still in."""
     spots: list[RaiseSpot] = []
+    exact_positions: dict[str, str] | None = None
     for idx, act in enumerate(hand.actions):
         if not act.is_hero:
             continue
@@ -177,6 +183,17 @@ def extract_hero_raise_spots(hand: Hand) -> list[RaiseSpot]:
         position = _classify_position(order)
         size_pct = round(100.0 * act.amount / act.pot_before, 4)
         all_fold, has_call, has_reraise = _response_flags(hand, idx)
+        hero_position = opponent_position = None
+        if len(active) == 2 and hand_table_format(hand) == "6max":
+            if exact_positions is None:
+                exact_positions = position_map(hand) if (
+                    hand.button_seat in hand.seat_names
+                    and len(set(hand.seat_names.values())) == len(hand.seat_names)
+                ) else {}
+            hero = exact_positions.get("Hero")
+            opponent = exact_positions.get(next(iter(opponents)))
+            if act.player == "Hero" and hero in EXACT_POSITION_ALL and opponent in EXACT_POSITION_ALL:
+                hero_position, opponent_position = hero, opponent
 
         spots.append(
             RaiseSpot(
@@ -188,6 +205,8 @@ def extract_hero_raise_spots(hand: Hand) -> list[RaiseSpot]:
                 has_call=has_call,
                 has_reraise=has_reraise,
                 flop_cards=hand.flop_cards if act.street in POSTFLOP_STREETS else (),
+                hero_position=hero_position,
+                opponent_position=opponent_position,
             )
         )
     return spots
@@ -355,11 +374,21 @@ def _size_matches(size_pct: float, selected: list[str]) -> bool:
     )
 
 
+def _uses_exact_positions(hand: Hand, options: dict[str, Any]) -> bool:
+    # Requests using only the legacy axis retain their existing behavior.
+    return (
+        hand_table_format(hand) == "6max"
+        and _as_str_list(options.get("player_counts")) == ["2"]
+        and ("hero_positions" in options or "opponent_positions" in options)
+    )
+
+
 def _spot_matches(
     spot: RaiseSpot,
     options: dict[str, Any],
     *,
     flop_line: str | None = None,
+    exact_position_mode: bool = False,
 ) -> bool:
     flop_detail = _truthy(options.get("flop_detail"))
     turn_detail = _truthy(options.get("turn_detail"))
@@ -408,7 +437,21 @@ def _spot_matches(
         if not _size_matches(spot.size_pct, _as_str_list(options.get("sizes"))):
             return False
 
-    if "positions" in options:
+    if exact_position_mode:
+        if spot.player_count != 2:
+            return False
+        for key, position in (
+            ("hero_positions", spot.hero_position),
+            ("opponent_positions", spot.opponent_position),
+        ):
+            if key not in options:
+                continue
+            chosen_pos = _axis_selected(_as_str_list(options[key]), EXACT_POSITION_ALL)
+            if not chosen_pos:
+                return False
+            if chosen_pos != EXACT_POSITION_ALL and position not in chosen_pos:
+                return False
+    elif "positions" in options:
         chosen_pos = _axis_selected(_as_str_list(options.get("positions")), POSITION_ALL)
         if not chosen_pos:
             return False
@@ -430,8 +473,10 @@ def hand_matches_raise_options(hand: Hand, options: dict[str, Any] | None) -> bo
     """True if this hand has at least one Hero raise spot matching options."""
     opts = options or {}
     flop_line = classify_flop_to_turn(hand) if _truthy(opts.get("turn_detail")) else None
+    exact_position_mode = _uses_exact_positions(hand, opts)
     return any(
-        _spot_matches(s, opts, flop_line=flop_line) for s in extract_hero_raise_spots(hand)
+        _spot_matches(s, opts, flop_line=flop_line, exact_position_mode=exact_position_mode)
+        for s in extract_hero_raise_spots(hand)
     )
 
 
@@ -482,10 +527,11 @@ class WhenIRaiseMetric(Metric):
 
         for hand in dataset.sorted_hands():
             flop_line = classify_flop_to_turn(hand) if turn_detail else None
+            exact_position_mode = _uses_exact_positions(hand, opts)
             hand_spots = [
                 s
                 for s in extract_hero_raise_spots(hand)
-                if _spot_matches(s, opts, flop_line=flop_line)
+                if _spot_matches(s, opts, flop_line=flop_line, exact_position_mode=exact_position_mode)
             ]
             if hand_spots:
                 hands_with_spot += 1
@@ -543,6 +589,10 @@ class WhenIRaiseMetric(Metric):
                 "player_counts": _as_str_list(opts.get("player_counts")) or sorted(PLAYER_COUNT_ALL),
                 "sizes": _as_str_list(opts.get("sizes")) or list(SIZE_IDS),
                 "positions": _as_str_list(opts.get("positions")) or sorted(POSITION_ALL),
+                **{
+                    key: _as_str_list(opts[key])
+                    for key in ("hero_positions", "opponent_positions") if key in opts
+                },
                 "flop_textures": _parse_flop_texture_constraints(opts.get("flop_textures"))
                 if flop_detail or turn_detail
                 else {},

@@ -656,6 +656,10 @@ h1 {
   font-size: 0.82rem;
 }
 
+.wir-position-row[hidden] {
+  display: none;
+}
+
 .metric-filter-subrow {
   margin-left: 0.75rem;
   padding-left: 12px;
