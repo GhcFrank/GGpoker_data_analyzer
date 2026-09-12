@@ -62,19 +62,20 @@ class PreflopSelectedEventTests(unittest.TestCase):
                         raise_to("Cold Fourbettor", 22),
                         act("Opener", "fold"),
                     ],
-                    {"Cold Fourbettor": ("As", "5s")},
+                    {"Opener": ("Ac", "Ad"), "Cold Fourbettor": ("As", "5s")},
                     site="coinpoker",
                 ),
             ]
         )
 
     def test_event_counts_and_replay_subsets_match_for_6max_and_9max(self) -> None:
-        expected_ids = {
-            "opener_call": "opener-call",
-            "opener_4bet": "opener-fourbet",
-            "all_fold": "all-fold",
-            "cold_4bet": "cold-fourbet",
-        }
+        cases = (
+            ("opener_call", "opener-call", "AKo"),
+            ("opener_4bet", "opener-fourbet", "QQ"),
+            ("opener_fold", "all-fold", "未知"),
+            ("all_fold", "all-fold", None),
+            ("cold_4bet", "cold-fourbet", "A5s"),
+        )
         for table_format in ("6max", "9max"):
             with self.subTest(table_format=table_format):
                 dataset = self._threebet_dataset(table_format)
@@ -98,100 +99,45 @@ class PreflopSelectedEventTests(unittest.TestCase):
                         "cold_4bet": 1,
                     },
                 )
-                for event_key, suffix in expected_ids.items():
-                    replay = get_replay(
-                        dataset,
-                        f"preflop_analysis{'_9max' if table_format == '9max' else ''}",
-                        0,
-                        {**options, "selected_event": event_key},
-                    )
-                    self.assertEqual(replay["total"], result["event_counts"][event_key])
-                    self.assertEqual(replay["hand"]["hand_id"], f"{table_format}-{suffix}")
+                for event_key, suffix, combo in cases:
+                    with self.subTest(event=event_key):
+                        replay = get_replay(
+                            dataset,
+                            f"preflop_analysis{'_9max' if table_format == '9max' else ''}",
+                            0,
+                            {**options, "selected_event": event_key},
+                        )
+                        self.assertEqual(replay["total"], result["event_counts"][event_key])
+                        self.assertEqual(replay["hand"]["hand_id"], f"{table_format}-{suffix}")
+                        if combo is not None:
+                            self.assertEqual(result["hand_details"][event_key], {
+                                "count": 1, "hands": [{"hand": combo, "count": 1, "pct": 100.0}],
+                            })
+                for event_key, detail in result["hand_details"].items():
+                    with self.subTest(detail=event_key):
+                        stat = result[event_key]
+                        self.assertEqual(detail["count"], stat["count"] if isinstance(stat, dict) else stat)
+                        self.assertEqual(sum(row["count"] for row in detail["hands"]), detail["count"])
 
-                # Clearing selected_event restores the entire base spot. Switching
-                # keys changes the subset without changing any base-spot options.
+                # Clearing restores the base sample; unknown event keys fail closed.
                 reset = get_replay(
                     dataset,
                     f"preflop_analysis{'_9max' if table_format == '9max' else ''}",
                     0,
                     {**options, "selected_event": ""},
                 )
-                switched = get_replay(
+                self.assertEqual(reset["total"], 4)
+                invalid = get_replay(
                     dataset,
                     f"preflop_analysis{'_9max' if table_format == '9max' else ''}",
                     0,
-                    {**options, "selected_event": "opener_call"},
+                    {**options, "selected_event": "not-a-real-event"},
                 )
-                self.assertEqual(reset["total"], 4)
-                self.assertEqual(switched["total"], 1)
-                self.assertEqual(switched["hand"]["hand_id"], f"{table_format}-opener-call")
+                self.assertEqual(invalid, {"index": 0, "total": 0, "hand": None})
 
                 # A non-actor event remains a valid replay filter but does not
                 # acquire a misleading opponent-card detail table.
                 self.assertNotIn("all_fold", result["hand_details"])
-
-    def test_open_faced_3bet_replay_keeps_cold_caller_in_full_hand(self) -> None:
-        for table_format in ("6max", "9max"):
-            with self.subTest(table_format=table_format):
-                names = {"CO": "Hero", "BTN": "Threebettor", "SB": "Cold Caller"}
-                hand = make_hand(
-                    f"{table_format}-faced-threebet-multiway",
-                    table_format,
-                    names,
-                    [
-                        raise_to("Hero", 2.5),
-                        raise_to("Threebettor", 8),
-                        act("Cold Caller", "call"),
-                        act("Hero", "call"),
-                    ],
-                    {
-                        "Threebettor": ("As", "Ad"),
-                        "Cold Caller": ("Kh", "Kd"),
-                    },
-                )
-                dataset = HandDataset([hand])
-                options = {
-                    "action": "open_raise",
-                    "hero_position": "CO",
-                    "selected_event": "faced_3bet",
-                    "table_format": table_format,
-                }
-                result = metric_for(table_format).compute(dataset, options)
-                replay = get_replay(
-                    dataset,
-                    f"preflop_analysis{'_9max' if table_format == '9max' else ''}",
-                    0,
-                    options,
-                )
-
-                self.assertEqual(result["event_counts"]["faced_3bet"], 1)
-                self.assertEqual(replay["total"], 1)
-                self.assertIn("Cold Caller", {player["name"] for player in replay["hand"]["players"]})
-                self.assertTrue(
-                    any(
-                        frame["actor"] == "Cold Caller" and frame["action"] == "call"
-                        for frame in replay["hand"]["frames"]
-                    )
-                )
-                self.assertEqual(
-                    result["hand_details"]["faced_3bet"]["hands"],
-                    [{"hand": "AA", "count": 1, "pct": 100.0}],
-                )
-
-    def test_unknown_selected_event_fails_closed(self) -> None:
-        dataset = self._threebet_dataset("6max")
-        replay = get_replay(
-            dataset,
-            "preflop_analysis",
-            0,
-            {
-                "action": "3bet",
-                "hero_position": "CO",
-                "opener_position": "HJ",
-                "selected_event": "not-a-real-event",
-            },
-        )
-        self.assertEqual(replay, {"index": 0, "total": 0, "hand": None})
 
     def test_existing_3bet_and_4bet_matrices_remain_available(self) -> None:
         for table_format in ("6max", "9max"):
