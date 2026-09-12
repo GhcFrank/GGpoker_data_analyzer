@@ -3,6 +3,7 @@
     { id: "profit_curve", label: "盈利曲线", live: true },
     { id: "overview_dashboard", label: "综合数据看板", live: true },
     { id: "when_i_raise", label: "When I Raise", live: true },
+    { id: "when_i_call", label: "When I Call", live: true },
     { id: "preflop_analysis", label: "翻前分析", live: true },
     { id: "tools", label: "小工具集合", live: false },
   ];
@@ -117,6 +118,7 @@
     summary: null,
     filterDefaults: null,
     wirRequestId: 0,
+    wicRequestId: 0,
     pfRequestId: 0,
     pfSelectedEvent: null,
     pfSelectedEventLabel: "",
@@ -552,21 +554,21 @@
     });
   }
 
-  function fillTurnFlopLineControls(host) {
+  function fillTurnFlopLineControls(host, prefix = "wir") {
     host.innerHTML = "";
     for (const opt of wirTurnFlopLineOpts) {
       const label = document.createElement("label");
       label.className = "stake-chip has-data";
       const hint = opt.hint ? ` title="${opt.hint}"` : "";
       label.innerHTML = `
-        <input type="checkbox" name="wir-turn-flop-line" value="${opt.id}"${hint} />
+        <input type="checkbox" name="${prefix}-turn-flop-line" value="${opt.id}"${hint} />
         <span>${opt.label}</span>
       `;
       host.appendChild(label);
     }
   }
 
-  function fillFlopTextureControls(host) {
+  function fillFlopTextureControls(host, prefix = "wir") {
     host.innerHTML = "";
     for (const opt of wirFlopTextureOpts) {
       const row = document.createElement("div");
@@ -584,11 +586,11 @@
         </div>
         <div class="flop-tex-polarity" role="group" aria-label="${opt.label} 是或否">
           <label class="flop-tex-yn">
-            <input type="radio" name="wir-flop-${opt.id}" value="true" checked disabled />
+            <input type="radio" name="${prefix}-flop-${opt.id}" value="true" checked disabled />
             <span>是</span>
           </label>
           <label class="flop-tex-yn">
-            <input type="radio" name="wir-flop-${opt.id}" value="false" disabled />
+            <input type="radio" name="${prefix}-flop-${opt.id}" value="false" disabled />
             <span>否</span>
           </label>
         </div>
@@ -693,8 +695,288 @@
     return options;
   }
 
+  function setupWhenICallFilters() {
+    fillChipGroup($("#wicStreetGroup"), wirStreetOpts, {
+      multi: true,
+      name: "wic-street",
+      checkedIds: new Set(["ALL"]),
+    });
+    fillChipGroup($("#wicPlayersGroup"), wirPlayerOpts, {
+      multi: true,
+      name: "wic-players",
+      checkedIds: new Set(wirPlayerOpts.map((o) => o.id)),
+    });
+    fillChipGroup($("#wicSizeGroup"), wirSizeOpts, {
+      multi: true,
+      name: "wic-size",
+      checkedIds: new Set(wirSizeOpts.map((o) => o.id)),
+    });
+    syncWhenICallPositionUI();
+    fillFlopTextureControls($("#wicFlopTextureGroup"), "wic");
+    fillTurnFlopLineControls($("#wicTurnFlopLineGroup"), "wic");
+    const flopDetailEnable = $("#wicFlopDetailEnable");
+    if (flopDetailEnable) flopDetailEnable.checked = false;
+    const turnDetailEnable = $("#wicTurnDetailEnable");
+    if (turnDetailEnable) turnDetailEnable.checked = false;
+    wicSyncDetailModeUI();
+
+    const host = $("#whenICallFilters");
+    host.addEventListener("change", (event) => {
+      const target = event.target;
+      if (target?.name === "wic-players") syncWhenICallPositionUI();
+      if (!target) {
+        scheduleWhenICallRefresh();
+        return;
+      }
+
+      if (target.id === "wicFlopDetailEnable") {
+        if (target.checked && !wicIsTurnDetailEnabled()) {
+          wicApplyFlopDetailStreetDefaults();
+        }
+        wicSyncDetailModeUI();
+        scheduleWhenICallRefresh();
+        return;
+      }
+
+      if (target.id === "wicTurnDetailEnable") {
+        if (target.checked) {
+          wicApplyTurnDetailStreetDefaults();
+        }
+        wicSyncDetailModeUI();
+        scheduleWhenICallRefresh();
+        return;
+      }
+
+      if (target.name === "wic-street") {
+        wicNormalizeStreetSelection(target);
+        wicSyncDetailModeUI();
+        scheduleWhenICallRefresh();
+        return;
+      }
+
+      if (target.classList && target.classList.contains("flop-tex-enable")) {
+        const row = target.closest(".flop-tex-row");
+        if (row) syncFlopTextureRowState(row);
+      }
+
+      scheduleWhenICallRefresh();
+    });
+  }
+
+  function scheduleWhenICallRefresh() {
+    const panel = $("#panel-when_i_call");
+    if (!state.open.has("when_i_call") || (panel && panel.hidden)) return;
+    if (!state.summary?.loaded || !selectedTableFormat()) return;
+    analyzeWhenICall().catch((err) => {
+      $("#filterStatus").textContent = `分析失败: ${err.message}`;
+      console.error(err);
+    });
+  }
+
+  function wicIsFlopDetailEnabled() {
+    const el = $("#wicFlopDetailEnable");
+    return !!(el && el.checked);
+  }
+
+  function wicIsTurnDetailEnabled() {
+    const el = $("#wicTurnDetailEnable");
+    return !!(el && el.checked);
+  }
+
+  function wicApplyFlopDetailStreetDefaults() {
+    document.querySelectorAll("#wicStreetGroup input").forEach((el) => {
+      if (el.value === "ALL" || el.value === "preflop") {
+        el.checked = false;
+      } else if (el.value === "flop" || el.value === "turn" || el.value === "river") {
+        el.checked = true;
+      }
+    });
+  }
+
+  function wicApplyTurnDetailStreetDefaults() {
+    document.querySelectorAll("#wicStreetGroup input").forEach((el) => {
+      if (el.value === "ALL" || el.value === "preflop" || el.value === "flop") {
+        el.checked = false;
+      } else if (el.value === "turn" || el.value === "river") {
+        el.checked = true;
+      }
+    });
+  }
+
+  function wicNormalizeStreetSelection(changed) {
+    const flopDetail = wicIsFlopDetailEnabled();
+    const turnDetail = wicIsTurnDetailEnabled();
+    const inputs = [...document.querySelectorAll("#wicStreetGroup input")];
+    if (!inputs.length) return;
+
+    if (turnDetail) {
+      inputs.forEach((el) => {
+        if (el.value === "ALL" || el.value === "preflop" || el.value === "flop") {
+          el.checked = false;
+        }
+      });
+      const turnStreets = inputs.filter((el) => ["turn", "river"].includes(el.value));
+      if (!turnStreets.some((el) => el.checked)) {
+        if (changed && ["turn", "river"].includes(changed.value)) {
+          changed.checked = true;
+        } else {
+          const turn = turnStreets.find((el) => el.value === "turn");
+          if (turn) turn.checked = true;
+        }
+      }
+      return;
+    }
+
+    if (flopDetail) {
+      // ALL / preflop are not allowed under flop_detail.
+      inputs.forEach((el) => {
+        if (el.value === "ALL" || el.value === "preflop") el.checked = false;
+      });
+      const postflop = inputs.filter((el) => ["flop", "turn", "river"].includes(el.value));
+      if (!postflop.some((el) => el.checked)) {
+        // Keep at least the street the user just interacted with, else flop.
+        if (changed && ["flop", "turn", "river"].includes(changed.value)) {
+          changed.checked = true;
+        } else {
+          const flop = postflop.find((el) => el.value === "flop");
+          if (flop) flop.checked = true;
+        }
+      }
+      return;
+    }
+
+    if (changed && changed.value === "ALL" && changed.checked) {
+      inputs.forEach((el) => {
+        if (el.value !== "ALL") el.checked = false;
+      });
+      return;
+    }
+
+    if (changed && changed.value !== "ALL" && changed.checked) {
+      const allEl = inputs.find((el) => el.value === "ALL");
+      if (allEl) allEl.checked = false;
+    }
+
+    if (!inputs.some((el) => el.checked)) {
+      const allEl = inputs.find((el) => el.value === "ALL");
+      if (allEl) allEl.checked = true;
+    }
+  }
+
+  function wicSyncDetailModeUI() {
+    const flopEnabled = wicIsFlopDetailEnabled();
+    const turnEnabled = wicIsTurnDetailEnabled();
+    const textureRow = $("#wicFlopTextureRow");
+    if (textureRow) textureRow.hidden = !flopEnabled;
+
+    const turnLineRow = $("#wicTurnFlopLineRow");
+    if (turnLineRow) turnLineRow.hidden = !turnEnabled;
+
+    document.querySelectorAll("#wicStreetGroup input").forEach((el) => {
+      let blocked = false;
+      if (turnEnabled) {
+        blocked = el.value === "ALL" || el.value === "preflop" || el.value === "flop";
+      } else if (flopEnabled) {
+        blocked = el.value === "ALL" || el.value === "preflop";
+      }
+      el.disabled = blocked;
+      const chip = el.closest(".stake-chip");
+      if (chip) chip.classList.toggle("is-disabled", blocked);
+    });
+  }
+
+  function whenICallExactPositionMode() {
+    const players = [...document.querySelectorAll("#wicPlayersGroup input:checked")];
+    return selectedTableFormat() === "6max" && players.length === 1 && players[0].value === "2";
+  }
+
+  function syncWhenICallPositionUI() {
+    const exact = whenICallExactPositionMode();
+    const host = $("#whenICallFilters");
+    const mode = exact ? "exact" : "relative";
+    if (host.dataset.positionMode !== mode) {
+      const groups = exact
+        ? [["#wicHeroPositionGroup", "wic-hero-position"], ["#wicOpponentPositionGroup", "wic-opponent-position"]]
+        : [["#wicPositionGroup", "wic-position"]];
+      const positions = exact ? TABLE_FORMAT_CONFIG["6max"].positions : wirPositionOpts;
+      for (const [selector, name] of groups) {
+        fillChipGroup($(selector), positions, {
+          multi: true,
+          name,
+          checkedIds: new Set(positions.map((o) => o.id)),
+        });
+      }
+      host.dataset.positionMode = mode;
+    }
+    $("#wicRelativePositionRow").hidden = exact;
+    $("#wicHeroPositionRow").hidden = !exact;
+    $("#wicOpponentPositionRow").hidden = !exact;
+  }
+
+  function readWhenICallOptions() {
+    syncWhenICallPositionUI();
+    const flop_detail = wicIsFlopDetailEnabled();
+    const turn_detail = wicIsTurnDetailEnabled();
+    let streets = [...document.querySelectorAll("#wicStreetGroup input:checked")].map(
+      (el) => el.value
+    );
+    if (turn_detail) {
+      streets = streets.filter((s) => s === "turn" || s === "river");
+      if (!streets.length) streets = ["turn", "river"];
+    } else if (flop_detail) {
+      streets = streets.filter((s) => s === "flop" || s === "turn" || s === "river");
+      if (!streets.length) streets = ["flop", "turn", "river"];
+    } else if (!streets.length || streets.includes("ALL")) {
+      streets = ["ALL"];
+    }
+
+    const player_counts = [...document.querySelectorAll("#wicPlayersGroup input:checked")].map(
+      (el) => el.value
+    );
+    const sizes = [...document.querySelectorAll("#wicSizeGroup input:checked")].map(
+      (el) => el.value
+    );
+    const options = {
+      streets,
+      flop_detail,
+      turn_detail,
+      player_counts,
+      sizes,
+    };
+    if (whenICallExactPositionMode()) {
+      options.hero_positions = [...document.querySelectorAll("#wicHeroPositionGroup input:checked")].map((el) => el.value);
+      options.opponent_positions = [...document.querySelectorAll("#wicOpponentPositionGroup input:checked")].map((el) => el.value);
+    } else {
+      options.positions = [...document.querySelectorAll("#wicPositionGroup input:checked")].map((el) => el.value);
+    }
+    if (flop_detail || turn_detail) {
+      const flop_textures = {};
+      document.querySelectorAll("#wicFlopTextureGroup .flop-tex-row").forEach((row) => {
+        const enable = row.querySelector(".flop-tex-enable");
+        if (!enable || !enable.checked) return;
+        const key = enable.dataset.key;
+        const wantEl = row.querySelector('.flop-tex-polarity input[type="radio"]:checked');
+        flop_textures[key] = wantEl ? wantEl.value === "true" : true;
+      });
+      if (Object.keys(flop_textures).length) {
+        options.flop_textures = flop_textures;
+      }
+    }
+    if (turn_detail) {
+      const turn_flop_lines = [
+        ...document.querySelectorAll("#wicTurnFlopLineGroup input:checked"),
+      ].map((el) => el.value);
+      if (turn_flop_lines.length) {
+        options.turn_flop_lines = turn_flop_lines;
+      }
+    }
+    return options;
+  }
+
   function onTableFormatChange() {
+    invalidateWhenICall();
     syncWhenIRaisePositionUI();
+    syncWhenICallPositionUI();
     refreshStakesGroup();
     refreshPreflopPositionUI();
     resetPreflopStudySelection();
@@ -793,12 +1075,14 @@
 
   function resetFilter() {
     if (!state.filterDefaults) return;
+    invalidateWhenICall();
     $("#dateFrom").value = state.filterDefaults.date_from;
     $("#dateTo").value = state.filterDefaults.date_to;
     for (const input of document.querySelectorAll("#tableFormatGroup input[type=radio]")) {
       input.checked = false;
     }
     syncWhenIRaisePositionUI();
+    syncWhenICallPositionUI();
     refreshStakesGroup();
     refreshPreflopPositionUI();
     for (const input of document.querySelectorAll("#stakesGroup input[type=checkbox]:not(:disabled)")) {
@@ -892,7 +1176,9 @@
 
   async function loadSummary(opts) {
     const data = await fetchJSON("/api/summary");
-    return applySummary(data, opts);
+    const summary = applySummary(data, opts);
+    syncWhenICallPositionUI();
+    return summary;
   }
 
   async function ensureDataLoaded() {
@@ -917,6 +1203,7 @@
       if (tf && !tf.disabled) {
         tf.checked = true;
         syncWhenIRaisePositionUI();
+        syncWhenICallPositionUI();
         refreshStakesGroup();
         refreshPreflopPositionUI();
       }
@@ -940,6 +1227,7 @@
       $("#dataDirStatus").textContent = "请先填写或浏览选择目录。";
       return;
     }
+    invalidateWhenICall();
     const btn = $("#applyDirBtn");
     btn.disabled = true;
     btn.textContent = "加载中…";
@@ -953,6 +1241,7 @@
       if (result.summary) {
         state.filterDefaults = null;
         applySummary(result.summary, { announce: true });
+        syncWhenICallPositionUI();
       } else {
         $("#dataDirInput").value = result.data_dir || path;
         $("#dataDirStatus").textContent = result.warning
@@ -1043,6 +1332,43 @@
     renderWhenIRaise(data);
   }
 
+  function invalidateWhenICall() {
+    ++state.wicRequestId;
+    $("#whenICallStats").textContent = "筛选或数据已更改，请点击「分析」。";
+    $("#whenICallEmpty").hidden = true;
+    $("#wicReplayBtn").disabled = true;
+    renderWhenICallShowdown(null);
+  }
+
+  async function analyzeWhenICall() {
+    const requestId = ++state.wicRequestId;
+    const filter = readFilter();
+    const options = readWhenICallOptions();
+    renderWhenICallShowdown(null, options.player_counts.length === 1 && options.player_counts[0] === "2");
+    $("#whenICallEmpty").hidden = true;
+    $("#wicReplayBtn").disabled = true;
+    $("#whenICallStats").innerHTML = `
+      <div class="stat">
+        <span class="label">样本数</span>
+        <span class="value" style="color:var(--muted)">计算中…</span>
+      </div>
+    `;
+    try {
+      const data = await fetchJSON("/api/metrics/when_i_call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...filter, options }),
+      });
+      if (requestId !== state.wicRequestId) return;
+      renderWhenICall(data);
+    } catch (err) {
+      if (requestId !== state.wicRequestId) return;
+      $("#whenICallStats").textContent = "分析失败，请重试。";
+      renderWhenICallShowdown(null);
+      throw err;
+    }
+  }
+
   async function analyze() {
     let filter = readFilter();
     if (!filter.table_format) {
@@ -1090,6 +1416,8 @@
           renderOverviewDashboard(data);
         } else if (def.id === "when_i_raise") {
           await analyzeWhenIRaise();
+        } else if (def.id === "when_i_call") {
+          await analyzeWhenICall();
         } else if (def.id === "preflop_analysis") {
           await Promise.all([analyzePreflop(), analyzePreflopMatrix(), analyzePreflop4betMatrix()]);
         }
@@ -1655,6 +1983,32 @@
     }).join("");
   }
 
+  function renderWhenICallShowdown(grid, loading = false) {
+    const wrap = $("#wicShowdownWrap");
+    const cells = $("#wicShowdownCells");
+    const status = $("#wicShowdownStatus");
+    wrap.hidden = !grid?.supported;
+    cells.innerHTML = "";
+    if (!grid?.supported) {
+      status.textContent = loading
+        ? "对手亮牌手牌分布计算中…"
+        : "对手亮牌手牌分布目前仅支持 2 人 pot。请选择 Player Count = 2人。";
+      return;
+    }
+    status.textContent = `已知对手手牌：${grid.revealed_hands} / ${grid.total_hands}`;
+    cells.innerHTML = Array.from({ length: 13 }, (_, row) => {
+      const columns = grid.cells.slice(row * 13, row * 13 + 13).map((cell) => `
+        <td class="${cell.count > 0 ? "has-hands" : ""}">
+          <span class="wir-hand-label">${cell.hand}</span>
+          ${cell.count > 0
+            ? `<span>${cell.count}</span><span>${fmtPct(cell.pct)}</span>`
+            : "<span>—</span>"}
+        </td>
+      `).join("");
+      return `<tr>${columns}</tr>`;
+    }).join("");
+  }
+
   function renderWhenIRaise(data) {
     renderWhenIRaiseShowdown(data.opponent_showdown_grid);
     const empty = $("#whenIRaiseEmpty");
@@ -1697,6 +2051,25 @@
         <span class="value">${fmtPct(reraise.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${reraise.count || 0})</span></span>
       </div>
     `;
+  }
+
+  function renderWhenICall(data) {
+    renderWhenICallShowdown(data.opponent_showdown_grid);
+    $("#whenICallEmpty").hidden = !!data.spot_count;
+    $("#wicReplayBtn").disabled = !data.hand_count;
+    const bet = data.facing_bet || {};
+    const raise = data.facing_raise || {};
+    $("#whenICallStats").innerHTML = [
+      { label: "样本数", value: data.spot_count },
+      { label: "涉及手数", value: data.hand_count },
+      { label: "Facing Bet", value: `${fmtPct(bet.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${bet.count || 0})</span>` },
+      { label: "Facing Raise", value: `${fmtPct(raise.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${raise.count || 0})</span>` },
+    ].map(({ label, value }) => `
+      <div class="stat">
+        <span class="label">${label}</span>
+        <span class="value">${value}</span>
+      </div>
+    `).join("");
   }
 
   function overviewFmt(key, stat) {
@@ -1866,6 +2239,7 @@
   async function init() {
     renderToggles();
     setupWhenIRaiseFilters();
+    setupWhenICallFilters();
     setupPreflopFilters();
     const tableFormatHost = $("#tableFormatGroup");
     if (tableFormatHost) {
@@ -1892,10 +2266,12 @@
       }
     });
     $("#dataDirInput").addEventListener("input", () => {
+      invalidateWhenICall();
       if (state.summary?.loaded) state.summary.loaded = false;
     });
 
     $("#reloadBtn").addEventListener("click", async () => {
+      invalidateWhenICall();
       await fetchJSON("/api/reload", { method: "POST" });
       state.filterDefaults = null;
       await loadSummary({ announce: true });
@@ -1925,6 +2301,15 @@
         window.PokerReplay.open("when_i_raise", () => ({
           filter: readFilter(),
           options: readWhenIRaiseOptions(),
+        }));
+      });
+    }
+    const wicReplayBtn = $("#wicReplayBtn");
+    if (wicReplayBtn) {
+      wicReplayBtn.addEventListener("click", () => {
+        window.PokerReplay.open("when_i_call", () => ({
+          filter: readFilter(),
+          options: readWhenICallOptions(),
         }));
       });
     }

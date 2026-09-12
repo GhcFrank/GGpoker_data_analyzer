@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{ title }}</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=selected-event-1" />
+  <link rel="stylesheet" href="/static/css/style.css?v=when-i-call-1" />
   <link rel="stylesheet" href="/static/css/replay.css" />
   <script src="/static/js/chart.umd.min.js"></script>
 </head>
@@ -196,6 +196,89 @@
           <div class="hand-matrix" id="wirShowdownWrap" hidden tabindex="0" role="region" aria-label="对手亮牌手牌分布，可横向滚动">
             <table class="wir-hand-grid" aria-label="对手亮牌 13×13 起手牌分布">
               <tbody id="wirShowdownCells"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section
+        class="analysis-panel"
+        id="panel-when_i_call"
+        data-metric="when_i_call"
+        hidden
+      >
+        <div class="panel-head">
+          <div>
+            <h2>When I Call</h2>
+            <p class="panel-desc">统计 Hero 面对对手下注/加注并选择跟注的情况。默认 General（条件全选）等于不限制该轴。</p>
+            <p class="panel-desc">Size 指 Hero 所面对的对手下注/加注大小。Size 定义：Small：(0%, 40%]；Medium：(40%, 60%]；Large：(60%, 99%]；Overbet：&gt;99%。</p>
+          </div>
+          <div class="panel-head-aside">
+            <button type="button" class="btn ghost" id="wicReplayBtn" disabled>数据可视化</button>
+          </div>
+        </div>
+
+        <div class="metric-filter" id="whenICallFilters">
+          <div class="metric-filter-row">
+            <span class="field-label">游戏轮次</span>
+            <div class="stakes-group" id="wicStreetGroup"></div>
+          </div>
+          <div class="metric-filter-row">
+            <span class="field-label">Flop Detail</span>
+            <label class="flop-detail-toggle" id="wicFlopDetailToggle">
+              <input type="checkbox" id="wicFlopDetailEnable" />
+              <span class="flop-tex-slider" aria-hidden="true"></span>
+              <span class="flop-detail-toggle-text">按 Flop 牌面细分</span>
+            </label>
+          </div>
+          <div class="metric-filter-row metric-filter-subrow" id="wicFlopTextureRow" hidden>
+            <span class="field-label">牌面条件</span>
+            <div class="flop-texture-list" id="wicFlopTextureGroup"></div>
+          </div>
+          <div class="metric-filter-row">
+            <span class="field-label">Turn Detail</span>
+            <label class="flop-detail-toggle" id="wicTurnDetailToggle">
+              <input type="checkbox" id="wicTurnDetailEnable" />
+              <span class="flop-tex-slider" aria-hidden="true"></span>
+              <span class="flop-detail-toggle-text">按 Flop 行动进入 Turn 细分</span>
+            </label>
+          </div>
+          <div class="metric-filter-row metric-filter-subrow" id="wicTurnFlopLineRow" hidden>
+            <span class="field-label">Flop 行动</span>
+            <div class="stakes-group" id="wicTurnFlopLineGroup"></div>
+          </div>
+          <div class="metric-filter-row">
+            <span class="field-label">游戏人数</span>
+            <div class="stakes-group" id="wicPlayersGroup"></div>
+          </div>
+          <div class="metric-filter-row">
+            <span class="field-label">对手下注 Size</span>
+            <div class="stakes-group" id="wicSizeGroup"></div>
+          </div>
+          <div class="metric-filter-row wir-position-row" id="wicRelativePositionRow">
+            <span class="field-label">我的位置</span>
+            <div class="stakes-group" id="wicPositionGroup"></div>
+          </div>
+          <div class="metric-filter-row wir-position-row" id="wicHeroPositionRow" hidden>
+            <span class="field-label">Hero Position</span>
+            <div class="stakes-group" id="wicHeroPositionGroup"></div>
+          </div>
+          <div class="metric-filter-row wir-position-row" id="wicOpponentPositionRow" hidden>
+            <span class="field-label">Opponent Position</span>
+            <div class="stakes-group" id="wicOpponentPositionGroup"></div>
+          </div>
+        </div>
+
+        <div class="stat-row" id="whenICallStats"></div>
+        <p class="empty-hint" id="whenICallEmpty" hidden>当前条件下没有 Hero 面对对手下注/加注并跟注的样本。</p>
+
+        <section class="wir-showdown" aria-labelledby="wicShowdownTitle">
+          <h3 id="wicShowdownTitle">对手亮牌手牌分布</h3>
+          <p class="panel-desc">仅统计当前筛选条件下最终能看到的被跟注对手底牌；百分比以“涉及手数”为分母。未亮牌的手牌不进入任何格子。</p>
+          <p class="panel-desc" id="wicShowdownStatus" role="status">对手亮牌手牌分布目前仅支持 2 人 pot。请选择 Player Count = 2人。</p>
+          <div class="hand-matrix" id="wicShowdownWrap" hidden tabindex="0" role="region" aria-label="对手亮牌手牌分布，可横向滚动">
+            <table class="wir-hand-grid" aria-label="对手亮牌 13×13 起手牌分布">
+              <tbody id="wicShowdownCells"></tbody>
             </table>
           </div>
         </section>
@@ -529,6 +612,6 @@
 
   <script src="/static/js/replay.js"></script>
   <script src="/static/js/tools.js"></script>
-  <script src="/static/js/app.js?v=selected-event-1"></script>
+  <script src="/static/js/app.js?v=when-i-call-1"></script>
 </body>
 </html>

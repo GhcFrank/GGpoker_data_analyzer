@@ -25,9 +25,10 @@ from poker.metrics.preflop_analysis_9max import (
 )
 from poker.metrics.preflop_events import spot_matches_event
 from poker.metrics.when_i_raise import hand_matches_raise_options
+from poker.metrics.when_i_call import hand_matches_call_options
 from poker.models import Hand
 
-SOURCES = ("preflop_analysis", "preflop_analysis_9max", "when_i_raise")
+SOURCES = ("preflop_analysis", "preflop_analysis_9max", "when_i_raise", "when_i_call")
 
 _PREFLOP_SOURCES = {
     "preflop_analysis": {
@@ -120,4 +121,6 @@ def matcher_for(source: str, options: dict[str, Any] | None) -> Callable[[Hand],
         return lambda hand: _preflop_matches(hand, opts, ctx)
     if source == "when_i_raise":
         return lambda hand: hand_matches_raise_options(hand, opts)
+    if source == "when_i_call":
+        return lambda hand: hand_matches_call_options(hand, opts)
     raise ValueError(f"未知回放来源: {source}")
