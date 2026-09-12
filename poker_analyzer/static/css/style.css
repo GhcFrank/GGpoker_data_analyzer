@@ -660,6 +660,10 @@ h1 {
   display: none;
 }
 
+#whenICallFilters [hidden] {
+  display: none;
+}
+
 .metric-filter-subrow {
   margin-left: 0.75rem;
   padding-left: 12px;

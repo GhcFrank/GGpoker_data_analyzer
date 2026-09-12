@@ -68,3 +68,4 @@ def load_builtin_metrics() -> None:
     from poker.metrics import preflop_analysis_9max  # noqa: F401
     from poker.metrics import profit  # noqa: F401
     from poker.metrics import when_i_raise  # noqa: F401
+    from poker.metrics import when_i_call  # noqa: F401
