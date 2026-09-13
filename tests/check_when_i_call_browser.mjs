@@ -39,24 +39,49 @@ import app
 import poker.service
 from poker.models import HandDataset
 from poker.service import AnalysisService
-from tests.test_when_i_call import make_hand, call_line, action
-from tests.test_when_i_raise import preflop_line
+from tests.test_when_i_call import make_hand, call_line, action, preflop_line as wic_preflop_line
+from tests.test_when_i_raise import preflop_line as wir_preflop_line
 
 hands = [make_hand(call_line() + call_line('turn') + call_line('river'), hand_id='triple', cards={'Villain': ('As', 'Kh')}),
          make_hand(hand_id='unknown'), make_hand(hand_id='suited', cards={'Villain': ('As', 'Ks')}),
          make_hand(hand_id='nine', max_players=9, hero='BB', opponent='BTN'),
-         make_hand([action('Hero', 'bet'), action('Villain', 'raise'), action('Hero', 'call')], hand_id='raise-call')]
-# WIR-only aggression fixtures leave the existing WIC sample counts unchanged.
+         make_hand([action('Villain', 'bet', amount=33), action('Hero', 'fold')], hand_id='fold-small'),
+         make_hand([action('Hero', 'check'), action('Villain', 'bet', amount=75),
+                    action('Hero', 'raise'), action('Villain', 'call')], hand_id='raise-large'),
+         make_hand([action('Hero', 'bet', amount=33), action('Villain', 'raise'),
+                    action('Hero', 'call')], hand_id='donk-excluded'),
+         make_hand([action('Villain', 'bet', amount=33), action('Hero', 'call')], hand_id='wic-3bet',
+                   preflop_actions=wic_preflop_line(('Hero', 'Villain'))),
+         make_hand([action('Villain', 'bet', amount=125), action('Hero', 'fold')], hand_id='wic-4bet',
+                   preflop_actions=wic_preflop_line(('Villain', 'Hero', 'Villain'))),
+         make_hand([action('Villain', 'bet', amount=50), action('Hero', 'raise')], hand_id='wic-5bet',
+                   preflop_actions=wic_preflop_line(('Hero', 'Villain', 'Hero', 'Villain'))),
+         make_hand([action('Villain', 'bet', amount=50), action('Hero', 'call')], hand_id='wic-6bet',
+                   preflop_actions=wic_preflop_line(('Villain', 'Hero', 'Villain', 'Hero', 'Villain'))),
+         make_hand([action('Villain', 'check'), action('Hero', 'check')], hand_id='wic-check-check',
+                   hero='BTN', opponent='SB', cards={'Villain': ('Qh', 'Qd')}),
+         make_hand([action('Villain', 'check'), action('Hero', 'bet')], hand_id='wic-check-bet')]
+# WIR-only aggression fixtures remain outside the WIC final-PFA role.
 for hand_id, raisers, cards in (
     ('wir-srp', ['Hero'], {'Villain': ('Ah', 'Ad')}),
     ('wir-3bet', ['Villain', 'Hero'], {'Villain': ('As', 'Kh')}),
     ('wir-3bet-unknown', ['Villain', 'Hero'], {}),
     ('wir-6bet', ['Hero', 'Villain', 'Hero', 'Villain', 'Hero'], {'Villain': ('Qc', 'Qd')}),
 ):
-    hands.append(make_hand(preflop_line(raisers) + [
+    hands.append(make_hand(wir_preflop_line(raisers) + [
         action('Hero', 'bet', 'flop', 33), action('Villain', 'call', 'flop', 33),
-        action('Hero', 'bet', 'turn', 75), action('Villain', 'fold', 'turn'),
+        action('Hero', 'bet', 'turn', 75),
+        action('Villain', 'raise' if hand_id == 'wir-3bet' else 'fold', 'turn'),
     ], hand_id=hand_id, cards=cards))
+hands.extend([
+    make_hand(wir_preflop_line(['Hero']) + [
+        action('Hero', 'check'), action('Villain', 'check'),
+    ], hand_id='wir-check-check', hero='BB', opponent='BTN', cards={'Villain': ('Qh', 'Qd')}),
+    make_hand(wir_preflop_line(['Hero']) + [
+        action('Hero', 'check'), action('Villain', 'bet'),
+        action('Hero', 'raise', amount=33), action('Villain', 'call'),
+    ], hand_id='wir-check-bet'),
+])
 class ReviewService(AnalysisService):
     def reload(self):
         self._dataset = HandDataset(hands)

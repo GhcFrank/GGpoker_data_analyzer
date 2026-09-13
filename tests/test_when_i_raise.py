@@ -3,7 +3,7 @@ from dataclasses import replace
 from datetime import datetime
 
 from poker.metrics.when_i_raise import (
-    POT_TYPE_IDS, WhenIRaiseMetric, classify_preflop_aggressor_context,
+    POT_TYPE_IDS, SIZE_IDS, WhenIRaiseMetric, classify_preflop_aggressor_context,
     extract_hero_raise_spots, hand_allowed_for_when_i_raise, hand_matches_raise_options,
 )
 from poker.models import Action, Hand, HandDataset
@@ -59,10 +59,14 @@ class WhenIRaiseTests(unittest.TestCase):
                 dataset = HandDataset([hand])
                 general = metric.compute(dataset)
                 self.assertEqual(general["spot_count"], 1)
-                self.assertEqual(general["options"]["sizes"], categories)
-                self.assertEqual(metric.compute(dataset, {"sizes": categories}), general)
+                self.assertEqual(general["options"]["sizes"], list(SIZE_IDS))
+                bet_general = metric.compute(dataset, {"sizes": categories})
+                self.assertEqual(
+                    {key: bet_general[key] for key in ("spot_count", "hand_count", "all_fold", "call", "reraise")},
+                    {key: general[key] for key in ("spot_count", "hand_count", "all_fold", "call", "reraise")},
+                )
                 selections = [[key] for key in categories] + [
-                    ["small", "medium"], ["large", "overbet"], categories, [],
+                    ["small", "medium"], ["large", "overbet"], categories, ["check"], [],
                 ]
                 for selected in selections:
                     with self.subTest(selected=selected):
@@ -72,6 +76,89 @@ class WhenIRaiseTests(unittest.TestCase):
                         self.assertEqual(result["spot_count"], int(matches))
                         self.assertEqual(result["hand_count"], int(matches))
                         self.assertEqual(hand_matches_raise_options(hand, options), matches)
+
+    def test_check_branch_uses_real_order_distinct_spots_and_separate_denominators(self):
+        def check_spots(actions, *, others=()):
+            hand = make_hand(preflop_line(["Hero"]) + actions, others=others)
+            return hand, [spot for spot in extract_hero_raise_spots(hand)
+                          if spot.action_kind == "check"]
+
+        check_hand, spots = check_spots([action("Hero", "check"), action("Villain", "check")])
+        self.assertEqual(len(spots), 1)
+        self.assertEqual((spots[0].size_pct, spots[0].opponent_check, spots[0].opponent_bet),
+                         (None, True, False))
+        self.assertEqual((spots[0].player_count, spots[0].hero_position,
+                          spots[0].opponent_position), (2, "BTN", "BB"))
+
+        for tail in (
+            [action("Villain", "bet")],
+            [action("Villain", "bet"), action("Hero", "call")],
+        ):
+            with self.subTest(tail=[act.action for act in tail]):
+                _, spots = check_spots([action("Hero", "check"), *tail])
+                self.assertEqual(len(spots), 1)
+                self.assertTrue(spots[0].opponent_bet)
+
+        _, last_to_act = check_spots([action("Villain", "check"), action("Hero", "check")])
+        self.assertEqual(last_to_act, [])
+
+        for responses, outcome in (
+            ([action("SB", "check"), action("Villain", "check")], "opponent_check"),
+            ([action("SB", "check"), action("Villain", "bet")], "opponent_bet"),
+            ([action("SB", "bet"), action("Villain", "raise")], "opponent_bet"),
+        ):
+            with self.subTest(responses=[act.action for act in responses]):
+                _, spots = check_spots([action("Hero", "check"), *responses], others=("SB",))
+                self.assertEqual(len(spots), 1)
+                self.assertEqual(spots[0].player_count, 3)
+                self.assertTrue(getattr(spots[0], outcome))
+
+        mixed = make_hand(preflop_line(["Hero"]) + [
+            action("Hero", "check"), action("Villain", "bet"),
+            action("Hero", "raise", amount=33), action("Villain", "call"),
+        ], hand_id="check-then-small-raise", cards={"Villain": ("As", "Kh")})
+        metric = WhenIRaiseMetric()
+        mixed_result = metric.compute(HandDataset([mixed]), {"sizes": ["check", "small"]})
+        self.assertEqual((mixed_result["spot_count"], mixed_result["hand_count"]), (2, 1))
+        self.assertEqual(mixed_result["call"], {"count": 1, "pct": 100.0})
+        self.assertEqual(mixed_result["opponent_bet"], {"count": 1, "pct": 100.0})
+        aggression_only = metric.compute(HandDataset([mixed]), {"sizes": ["small"]})
+        self.assertEqual((aggression_only["spot_count"], aggression_only["call"]["pct"]), (1, 100.0))
+        self.assertEqual(aggression_only["opponent_bet"], {"count": 0, "pct": None})
+        check_only = metric.compute(HandDataset([mixed]), {"sizes": ["check"]})
+        self.assertEqual((check_only["spot_count"], check_only["opponent_bet"]["pct"]), (1, 100.0))
+        self.assertEqual(check_only["call"], {"count": 0, "pct": None})
+
+        turn = make_hand(preflop_line(["Hero"]) + [
+            action("Hero", "check"), action("Villain", "check"),
+            action("Hero", "check", "turn"), action("Villain", "bet", "turn"),
+        ], hand_id="turn-check", cards={"Villain": ("As", "Kh")})
+        turn_options = {
+            "sizes": ["check"], "streets": ["turn"], "turn_detail": True,
+            "turn_flop_lines": ["flop_checkcheck"], "player_counts": ["2"],
+            "hero_positions": ["BTN"], "opponent_positions": ["BB"],
+        }
+        turn_result = metric.compute(HandDataset([turn]), turn_options)
+        self.assertEqual(turn_result["opponent_bet"], {"count": 1, "pct": 100.0})
+        texture_result = metric.compute(HandDataset([check_hand]), {
+            "sizes": ["check"], "flop_detail": True,
+            "flop_textures": {"has_ace": True},
+        })
+        self.assertEqual(texture_result["spot_count"], 1)
+
+        dataset = HandDataset([check_hand, mixed, turn])
+        self.assertEqual(get_replay(dataset, "when_i_raise", 0, {
+            "sizes": ["check"], "replay_outcome": "opponent_check",
+        })["total"], 2)
+        opponent_bet_replay = get_replay(dataset, "when_i_raise", 0, {
+            "sizes": ["check"], "replay_outcome": "opponent_bet",
+        })
+        self.assertEqual(opponent_bet_replay["total"], 2)
+        grid = metric.compute(HandDataset([mixed]), {
+            "sizes": ["check"], "player_counts": ["2"],
+        })["opponent_showdown_grid"]
+        self.assertEqual((grid["total_hands"], grid["revealed_hands"]), (1, 1))
+        self.assertEqual(next(cell for cell in grid["cells"] if cell["hand"] == "AKo")["pct"], 100.0)
 
     def test_opponent_grid_counts_matching_heads_up_hands(self) -> None:
         base = Hand(
@@ -276,6 +363,32 @@ class WhenIRaiseTests(unittest.TestCase):
                 self.assertEqual(first["total"], result["hand_count"])
                 self.assertEqual({get_replay(dataset, "when_i_raise", i, options)["hand"]["hand_id"]
                                   for i in range(first["total"])}, expected)
+
+    def test_replay_outcome_filters_distinct_hands_and_preserves_overlap(self):
+        mixed = make_hand(preflop_line(["Hero"]) + [
+            action("Hero", "bet", "flop", 33), action("Villain", "call", "flop"),
+            action("Hero", "bet", "turn", 75), action("Villain", "fold", "turn"),
+        ], hand_id="call-and-fold")
+        overlap = make_hand(preflop_line(["Hero"]) + [
+            action("Hero", "bet", "flop", 50), action("SB", "call", "flop"),
+            action("Villain", "raise", "flop", 100),
+        ], hand_id="call-and-reraise", others=("SB",))
+        dataset = HandDataset([mixed, overlap])
+
+        def replay_ids(options):
+            first = get_replay(dataset, "when_i_raise", 0, options)
+            return {
+                get_replay(dataset, "when_i_raise", index, options)["hand"]["hand_id"]
+                for index in range(first["total"])
+            }
+
+        self.assertEqual(replay_ids({}), {"call-and-fold", "call-and-reraise"})
+        self.assertEqual(replay_ids({"replay_outcome": "all_fold"}), {"call-and-fold"})
+        self.assertEqual(replay_ids({"replay_outcome": "call"}),
+                         {"call-and-fold", "call-and-reraise"})
+        self.assertEqual(replay_ids({"replay_outcome": "reraise"}), {"call-and-reraise"})
+        self.assertEqual(get_replay(dataset, "when_i_raise", 0,
+                                    {"replay_outcome": "unknown"})["total"], 0)
 
     def test_target_streets_are_postflop_only_and_responses_still_belong_to_opponents(self):
         hand = make_hand(preflop_line(["Hero"]) + [

@@ -74,14 +74,14 @@
     { id: "5bet", label: "5bet" },
   ];
 
-  const wicStreetOpts = [
+  const postflopStreetOpts = [
     { id: "ALL", label: "ALL" },
-    { id: "preflop", label: "Preflop" },
     { id: "flop", label: "Flop" },
     { id: "turn", label: "Turn" },
     { id: "river", label: "River" },
   ];
-  const wirStreetOpts = wicStreetOpts.filter((opt) => opt.id !== "preflop");
+  const wirStreetOpts = postflopStreetOpts;
+  const wicStreetOpts = postflopStreetOpts;
   const wirPotTypeOpts = [
     { id: "srp", label: "Single Raised Pot" },
     { id: "3bet", label: "3-Bet Pot" },
@@ -93,6 +93,7 @@
     { id: "3+", label: "2人以上" },
   ];
   const wirSizeOpts = [
+    { id: "check", label: "Check" },
     { id: "small", label: "Small" },
     { id: "medium", label: "Medium" },
     { id: "large", label: "Large" },
@@ -116,6 +117,11 @@
     { id: "flop_checkcheck", label: "Check-Check", hint: "Flop 所有人 check 到 Turn" },
     { id: "flop_call", label: "Flop Call", hint: "Hero 最后 call 进入 Turn" },
     { id: "flop_raise", label: "Flop Raise", hint: "Hero 最后 raise/bet 被 call 进入 Turn" },
+  ];
+  const wicTurnFlopLineOpts = [
+    { id: "flop_checkcheck", label: "Check-Check", hint: "Flop 所有人 check 到 Turn" },
+    { id: "flop_call", label: "Hero Call", hint: "Hero 最后 call 进入 Turn" },
+    { id: "flop_raise", label: "Hero Raise", hint: "Hero 最后 raise 并进入 Turn" },
   ];
 
   const state = {
@@ -282,6 +288,7 @@
     });
     syncWhenIRaisePositionUI();
     for (const [buttonId, groupId] of [
+      ["#wirActionSizeUnselectAll", "#wirSizeGroup"],
       ["#wirHeroPositionUnselectAll", "#wirHeroPositionGroup"],
       ["#wirOpponentPositionUnselectAll", "#wirOpponentPositionGroup"],
     ]) {
@@ -577,7 +584,8 @@
 
   function fillTurnFlopLineControls(host, prefix = "wir") {
     host.innerHTML = "";
-    for (const opt of wirTurnFlopLineOpts) {
+    const options = prefix === "wic" ? wicTurnFlopLineOpts : wirTurnFlopLineOpts;
+    for (const opt of options) {
       const label = document.createElement("label");
       label.className = "stake-chip has-data";
       const hint = opt.hint ? ` title="${opt.hint}"` : "";
@@ -719,6 +727,11 @@
   }
 
   function setupWhenICallFilters() {
+    fillChipGroup($("#wicPotTypeGroup"), wirPotTypeOpts, {
+      multi: true,
+      name: "wic-pot-type",
+      checkedIds: new Set(wirPotTypeOpts.map((o) => o.id)),
+    });
     fillChipGroup($("#wicStreetGroup"), wicStreetOpts, {
       multi: true,
       name: "wic-street",
@@ -735,6 +748,16 @@
       checkedIds: new Set(wirSizeOpts.map((o) => o.id)),
     });
     syncWhenICallPositionUI();
+    for (const [buttonId, groupId] of [
+      ["#wicActionSizeUnselectAll", "#wicSizeGroup"],
+      ["#wicHeroPositionUnselectAll", "#wicHeroPositionGroup"],
+      ["#wicOpponentPositionUnselectAll", "#wicOpponentPositionGroup"],
+    ]) {
+      $(buttonId).addEventListener("click", () => {
+        document.querySelectorAll(`${groupId} input`).forEach((input) => { input.checked = false; });
+        scheduleWhenICallRefresh();
+      });
+    }
     fillFlopTextureControls($("#wicFlopTextureGroup"), "wic");
     fillTurnFlopLineControls($("#wicTurnFlopLineGroup"), "wic");
     const flopDetailEnable = $("#wicFlopDetailEnable");
@@ -808,7 +831,7 @@
 
   function wicApplyFlopDetailStreetDefaults() {
     document.querySelectorAll("#wicStreetGroup input").forEach((el) => {
-      if (el.value === "ALL" || el.value === "preflop") {
+      if (el.value === "ALL") {
         el.checked = false;
       } else if (el.value === "flop" || el.value === "turn" || el.value === "river") {
         el.checked = true;
@@ -818,7 +841,7 @@
 
   function wicApplyTurnDetailStreetDefaults() {
     document.querySelectorAll("#wicStreetGroup input").forEach((el) => {
-      if (el.value === "ALL" || el.value === "preflop" || el.value === "flop") {
+      if (el.value === "ALL" || el.value === "flop") {
         el.checked = false;
       } else if (el.value === "turn" || el.value === "river") {
         el.checked = true;
@@ -834,7 +857,7 @@
 
     if (turnDetail) {
       inputs.forEach((el) => {
-        if (el.value === "ALL" || el.value === "preflop" || el.value === "flop") {
+        if (el.value === "ALL" || el.value === "flop") {
           el.checked = false;
         }
       });
@@ -851,9 +874,9 @@
     }
 
     if (flopDetail) {
-      // ALL / preflop are not allowed under flop_detail.
+      // ALL is not allowed under flop_detail.
       inputs.forEach((el) => {
-        if (el.value === "ALL" || el.value === "preflop") el.checked = false;
+        if (el.value === "ALL") el.checked = false;
       });
       const postflop = inputs.filter((el) => ["flop", "turn", "river"].includes(el.value));
       if (!postflop.some((el) => el.checked)) {
@@ -898,9 +921,9 @@
     document.querySelectorAll("#wicStreetGroup input").forEach((el) => {
       let blocked = false;
       if (turnEnabled) {
-        blocked = el.value === "ALL" || el.value === "preflop" || el.value === "flop";
+        blocked = el.value === "ALL" || el.value === "flop";
       } else if (flopEnabled) {
-        blocked = el.value === "ALL" || el.value === "preflop";
+        blocked = el.value === "ALL";
       }
       el.disabled = blocked;
       const chip = el.closest(".stake-chip");
@@ -938,6 +961,9 @@
 
   function readWhenICallOptions() {
     syncWhenICallPositionUI();
+    const pot_types = [...document.querySelectorAll("#wicPotTypeGroup input:checked")].map(
+      (el) => el.value
+    );
     const flop_detail = wicIsFlopDetailEnabled();
     const turn_detail = wicIsTurnDetailEnabled();
     let streets = [...document.querySelectorAll("#wicStreetGroup input:checked")].map(
@@ -960,6 +986,7 @@
       (el) => el.value
     );
     const options = {
+      pot_types,
       streets,
       flop_detail,
       turn_detail,
@@ -2052,47 +2079,91 @@
     const allFold = data.all_fold || {};
     const call = data.call || {};
     const reraise = data.reraise || {};
-    stats.innerHTML = `
-      <div class="stat">
-        <span class="label">样本数</span>
-        <span class="value">${data.spot_count}</span>
-      </div>
-      <div class="stat">
-        <span class="label">涉及手数</span>
-        <span class="value">${data.hand_count}</span>
-      </div>
-      <div class="stat">
-        <span class="label">All Fold</span>
-        <span class="value">${fmtPct(allFold.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${allFold.count || 0})</span></span>
-      </div>
-      <div class="stat">
-        <span class="label">Call</span>
-        <span class="value">${fmtPct(call.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${call.count || 0})</span></span>
-      </div>
-      <div class="stat">
-        <span class="label">Reraise</span>
-        <span class="value">${fmtPct(reraise.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${reraise.count || 0})</span></span>
-      </div>
-    `;
+    const opponentCheck = data.opponent_check || {};
+    const opponentBet = data.opponent_bet || {};
+    const selectedSizes = new Set(data.options?.sizes || []);
+    const cards = [
+      { label: "样本数", value: data.spot_count, count: data.spot_count },
+      { label: "涉及手数", value: data.hand_count, count: data.hand_count },
+    ];
+    if (["small", "medium", "large", "overbet"].some((size) => selectedSizes.has(size))) {
+      cards.push(
+        { label: "All Fold", value: statPctValue(allFold), count: allFold.count, outcome: "all_fold" },
+        { label: "Call", value: statPctValue(call), count: call.count, outcome: "call" },
+        { label: "Reraise", value: statPctValue(reraise), count: reraise.count, outcome: "reraise" },
+      );
+    }
+    if (selectedSizes.has("check")) {
+      cards.push(
+        { label: "Opponent Check", value: statPctValue(opponentCheck), count: opponentCheck.count, outcome: "opponent_check" },
+        { label: "Opponent Bet", value: statPctValue(opponentBet), count: opponentBet.count, outcome: "opponent_bet" },
+      );
+    }
+    stats.innerHTML = cards.map(replayStatCard).join("");
+    bindReplayStats(stats, "when_i_raise", readWhenIRaiseOptions);
+  }
+
+  function statPctValue(stat) {
+    return `${fmtPct(stat.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${stat.count || 0})</span>`;
+  }
+
+  function replayStatCard({ label, value, count, outcome }) {
+    const clickable = Number(count) > 0;
+    const tag = clickable ? "button" : "div";
+    const attrs = clickable
+      ? ` type="button" class="stat stat-replay" title="查看对应手牌"${outcome ? ` data-replay-outcome="${outcome}"` : ""}`
+      : ' class="stat"';
+    return `<${tag}${attrs}>
+      <span class="label">${label}</span>
+      <span class="value">${value}</span>
+    </${tag}>`;
+  }
+
+  function openMetricReplay(source, readOptions, replayOutcome = null) {
+    window.PokerReplay.open(source, () => {
+      const options = readOptions();
+      if (replayOutcome) options.replay_outcome = replayOutcome;
+      return { filter: readFilter(), options };
+    });
+  }
+
+  function bindReplayStats(host, source, readOptions) {
+    host.querySelectorAll(".stat-replay").forEach((button) => {
+      button.addEventListener("click", () => {
+        openMetricReplay(source, readOptions, button.dataset.replayOutcome || null);
+      });
+    });
   }
 
   function renderWhenICall(data) {
     renderWhenICallShowdown(data.opponent_showdown_grid);
     $("#whenICallEmpty").hidden = !!data.spot_count;
     $("#wicReplayBtn").disabled = !data.hand_count;
-    const bet = data.facing_bet || {};
-    const raise = data.facing_raise || {};
-    $("#whenICallStats").innerHTML = [
-      { label: "样本数", value: data.spot_count },
-      { label: "涉及手数", value: data.hand_count },
-      { label: "Facing Bet", value: `${fmtPct(bet.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${bet.count || 0})</span>` },
-      { label: "Facing Raise", value: `${fmtPct(raise.pct)} <span style="color:var(--muted);font-weight:500;font-size:0.85rem">(${raise.count || 0})</span>` },
-    ].map(({ label, value }) => `
-      <div class="stat">
-        <span class="label">${label}</span>
-        <span class="value">${value}</span>
-      </div>
-    `).join("");
+    const fold = data.hero_fold || {};
+    const call = data.hero_call || {};
+    const raise = data.hero_raise || {};
+    const check = data.hero_check || {};
+    const bet = data.hero_bet || {};
+    const selectedSizes = new Set(data.options?.sizes || []);
+    const cards = [
+      { label: "样本数", value: data.spot_count, count: data.spot_count },
+      { label: "涉及手数", value: data.hand_count, count: data.hand_count },
+    ];
+    if (["small", "medium", "large", "overbet"].some((size) => selectedSizes.has(size))) {
+      cards.push(
+        { label: "Hero Fold", value: statPctValue(fold), count: fold.count, outcome: "hero_fold" },
+        { label: "Hero Call", value: statPctValue(call), count: call.count, outcome: "hero_call" },
+        { label: "Hero Raise", value: statPctValue(raise), count: raise.count, outcome: "hero_raise" },
+      );
+    }
+    if (selectedSizes.has("check")) {
+      cards.push(
+        { label: "Hero Check", value: statPctValue(check), count: check.count, outcome: "hero_check" },
+        { label: "Hero Bet", value: statPctValue(bet), count: bet.count, outcome: "hero_bet" },
+      );
+    }
+    $("#whenICallStats").innerHTML = cards.map(replayStatCard).join("");
+    bindReplayStats($("#whenICallStats"), "when_i_call", readWhenICallOptions);
   }
 
   function overviewFmt(key, stat) {
@@ -2321,19 +2392,13 @@
     const wirReplayBtn = $("#wirReplayBtn");
     if (wirReplayBtn) {
       wirReplayBtn.addEventListener("click", () => {
-        window.PokerReplay.open("when_i_raise", () => ({
-          filter: readFilter(),
-          options: readWhenIRaiseOptions(),
-        }));
+        openMetricReplay("when_i_raise", readWhenIRaiseOptions);
       });
     }
     const wicReplayBtn = $("#wicReplayBtn");
     if (wicReplayBtn) {
       wicReplayBtn.addEventListener("click", () => {
-        window.PokerReplay.open("when_i_call", () => ({
-          filter: readFilter(),
-          options: readWhenICallOptions(),
-        }));
+        openMetricReplay("when_i_call", readWhenICallOptions);
       });
     }
   }

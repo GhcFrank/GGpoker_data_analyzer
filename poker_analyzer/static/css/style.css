@@ -522,6 +522,24 @@ h1 {
   min-width: 120px;
 }
 
+.stat-replay {
+  appearance: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stat-replay:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg2));
+}
+
+.stat-replay:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .stat .label {
   display: block;
   color: var(--muted);
