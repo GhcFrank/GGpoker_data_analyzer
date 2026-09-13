@@ -2,9 +2,31 @@ import unittest
 from dataclasses import replace
 from datetime import datetime
 
-from poker.metrics.when_i_raise import WhenIRaiseMetric, extract_hero_raise_spots, hand_matches_raise_options
+from poker.metrics.when_i_raise import (
+    POT_TYPE_IDS, WhenIRaiseMetric, classify_preflop_aggressor_context,
+    extract_hero_raise_spots, hand_allowed_for_when_i_raise, hand_matches_raise_options,
+)
 from poker.models import Action, Hand, HandDataset
+from poker.parser import parse_hand
 from poker.positions.six_max import POSITION_ORDER
+from poker.replay.service import get_replay
+from tests.test_when_i_call import action, make_hand
+
+
+def preflop_line(raisers):
+    actions = [Action("preflop", player, "raise", amount=3 * (i + 1), pot_before=1.5 + 3 * i,
+                      is_hero=player == "Hero") for i, player in enumerate(raisers)]
+    if raisers:
+        caller = "Villain" if raisers[-1] == "Hero" else "Hero"
+        actions.append(Action("preflop", caller, "call", amount=3, is_hero=caller == "Hero"))
+    return actions
+
+
+def with_open_raise(hand):
+    """Add eligible preflop context without changing the postflop case under test."""
+    index = next((i for i, act in enumerate(hand.actions) if act.street != "preflop"), len(hand.actions))
+    return replace(hand, went_to_flop=True,
+                   actions=hand.actions[:index] + preflop_line(["Hero"]) + hand.actions[index:])
 
 
 class WhenIRaiseTests(unittest.TestCase):
@@ -33,6 +55,7 @@ class WhenIRaiseTests(unittest.TestCase):
                         Action("flop", "Villain", "fold"),
                     ],
                 )
+                hand = with_open_raise(hand)
                 dataset = HandDataset([hand])
                 general = metric.compute(dataset)
                 self.assertEqual(general["spot_count"], 1)
@@ -83,7 +106,7 @@ class WhenIRaiseTests(unittest.TestCase):
                              shown_cards={"Villain": ("Qd", "Qs")}))
         hands.append(replace(base, hand_id="overbet", shown_cards={"Villain": ("Qd", "Qs")},
                              actions=[base.actions[0], replace(base.actions[1], amount=150)]))
-        dataset = HandDataset(hands)
+        dataset = HandDataset([with_open_raise(hand) for hand in hands])
         metric = WhenIRaiseMetric()
         options = {"player_counts": ["2"], "sizes": ["medium"]}
         result = metric.compute(dataset, options)
@@ -141,9 +164,10 @@ class WhenIRaiseTests(unittest.TestCase):
                     Action("turn", "Villain", "fold"),
                 ],
             )
+            hand = with_open_raise(hand)
             hands.append(hand)
             self.assertEqual([(s.hero_position, s.opponent_position)
-                              for s in extract_hero_raise_spots(hand)], [(hero, opponent)] * 2)
+                              for s in extract_hero_raise_spots(hand) if s.street != "preflop"], [(hero, opponent)] * 2)
         metric = WhenIRaiseMetric()
         all_positions = list(POSITION_ORDER)
         exact = {"hero_positions": ["BTN"], "opponent_positions": ["BB"]}
@@ -188,6 +212,167 @@ class WhenIRaiseTests(unittest.TestCase):
         self.assertTrue(hand_matches_raise_options(unresolved, {
             "player_counts": ["2"], "hero_positions": all_positions, "opponent_positions": all_positions,
         }))
+
+    def test_preflop_context_counts_only_raises_and_keeps_actor_independent(self):
+        for count, pot_type in enumerate((None, "srp", "3bet", "4bet", "5bet", None, None)):
+            for final in ("Hero", "Villain"):
+                with self.subTest(count=count, final=final):
+                    other = "Villain" if final == "Hero" else "Hero"
+                    raisers = [final if (count - i) % 2 else other for i in range(count)]
+                    # Limp, cold calls, checks, posts and postflop raises do not count.
+                    actions = [action("SB", "posts small blind", "preflop"), action("SB", "call", "preflop")]
+                    for raise_action in preflop_line(raisers):
+                        actions.extend([raise_action, action("SB", "call", "preflop")])
+                    actions += [action("SB", "check", "preflop"), action(other, "raise", "turn")]
+                    context = classify_preflop_aggressor_context(make_hand(actions, others=("SB",)))
+                    self.assertEqual((context.raise_count, context.pot_type), (count, pot_type))
+                    self.assertEqual(context.final_aggressor, final if count else None)
+                    self.assertEqual(context.hero_is_final_aggressor, bool(count and final == "Hero"))
+
+    def test_final_pfa_eligibility_and_flop_requirement(self):
+        postflop = [action("Hero", "bet"), action("Villain", "call")]
+        for raisers, eligible in (
+            (["Hero"], True), (["Villain", "Hero"], True),
+            (["Hero", "Villain", "Hero"], True), (["Villain", "Hero", "Villain", "Hero"], True),
+            (["Hero", "Villain"], False), (["Villain", "Hero", "Villain"], False),
+            (["Villain"], False), ([], False), (["Hero", "Villain", "Hero", "Villain", "Hero"], False),
+        ):
+            with self.subTest(raisers=raisers):
+                hand = make_hand(preflop_line(raisers) + postflop)
+                # The generic extractor still works for non-PFA hands and preflop.
+                spots = extract_hero_raise_spots(hand)
+                self.assertTrue(any(s.street == "flop" for s in spots))
+                self.assertEqual(sum(s.street == "preflop" for s in spots), raisers.count("Hero"))
+                self.assertEqual(hand_allowed_for_when_i_raise(hand, {}), eligible)
+                self.assertEqual(hand_matches_raise_options(hand, {}), eligible)
+                self.assertEqual(WhenIRaiseMetric().compute(HandDataset([hand]))["spot_count"], int(eligible))
+        won_preflop = replace(make_hand(preflop_line(["Hero"])[:1] + [action("Villain", "fold", "preflop")]),
+                              went_to_flop=False, flop_cards=())
+        self.assertFalse(hand_allowed_for_when_i_raise(won_preflop, {}))
+        self.assertFalse(hand_matches_raise_options(won_preflop, {}))
+        self.assertEqual(WhenIRaiseMetric().compute(HandDataset([won_preflop]))["hand_count"], 0)
+        # Each normalized source of flop evidence works without parser changes.
+        for evidence in ({"went_to_flop": True}, {"flop_cards": ("As", "7h", "2h")},
+                         {"actions": preflop_line(["Hero"]) + postflop}):
+            self.assertTrue(hand_allowed_for_when_i_raise(replace(won_preflop, **evidence), {}))
+
+    def test_pot_type_selection_and_replay_counts(self):
+        hands = []
+        for count, pot_type in enumerate((*POT_TYPE_IDS, "6bet"), 1):
+            raisers = ["Hero" if (count - i) % 2 else "Villain" for i in range(count)]
+            postflop = [act for street in ("flop", "turn", "river")
+                        for act in (action("Hero", "bet", street), action("Villain", "call", street))]
+            hands.append(make_hand(preflop_line(raisers) + postflop, hand_id=pot_type))
+        dataset = HandDataset(hands)
+        for selected in (None, [], ["srp"], ["3bet"], ["4bet"], ["5bet"], ["srp", "4bet"], list(POT_TYPE_IDS)):
+            with self.subTest(selected=selected):
+                options = {} if selected is None else {"pot_types": selected}
+                expected = set(POT_TYPE_IDS if selected is None else selected)
+                result = WhenIRaiseMetric().compute(dataset, options)
+                self.assertEqual((result["spot_count"], result["hand_count"]), (3 * len(expected), len(expected)))
+                self.assertEqual(set(result["options"]["pot_types"]), expected)
+                self.assertEqual({h.hand_id for h in hands if hand_matches_raise_options(h, options)}, expected)
+                first = get_replay(dataset, "when_i_raise", 0, options)
+                self.assertEqual(first["total"], result["hand_count"])
+                self.assertEqual({get_replay(dataset, "when_i_raise", i, options)["hand"]["hand_id"]
+                                  for i in range(first["total"])}, expected)
+
+    def test_target_streets_are_postflop_only_and_responses_still_belong_to_opponents(self):
+        hand = make_hand(preflop_line(["Hero"]) + [
+            action("Hero", "bet", "flop", 33), action("Villain", "call"),
+            action("Hero", "bet", "turn", 50), action("Villain", "raise", "turn"),
+            action("Hero", "call", "turn"),
+            action("Hero", "bet", "river", 75), action("Villain", "fold", "river"),
+        ], cards={"Villain": ("As", "Kh")})
+        cases = ((["ALL"], 3), (["flop"], 1), (["turn"], 1), (["river"], 1),
+                 (["preflop"], 0), (["preflop", "turn"], 1))
+        for streets, expected in cases:
+            opts = {"streets": streets, "player_counts": ["2"]}
+            result = WhenIRaiseMetric().compute(HandDataset([hand]), opts)
+            self.assertEqual((result["spot_count"], result["hand_count"]), (expected, int(expected > 0)))
+            self.assertNotIn("preflop", result["options"]["streets"])
+            grid = result["opponent_showdown_grid"]
+            self.assertEqual(sum(c["count"] for c in grid["cells"]), int(expected > 0))
+        for street, size, response in (("flop", "small", "call"), ("turn", "medium", "reraise"), ("river", "large", "all_fold")):
+            opts = {"street": street, "sizes": [size]}
+            result = WhenIRaiseMetric().compute(HandDataset([hand]), opts)
+            self.assertEqual(result["spot_count"], 1)
+            self.assertEqual(result[response], {"count": 1, "pct": 100.0})
+        self.assertFalse(hand_matches_raise_options(hand, {"street": "preflop"}))
+        multiway = make_hand(preflop_line(["Hero"]) + [action("Hero", "bet"), action("SB", "call"),
+                                                      action("Villain", "raise")], others=("SB",))
+        result = WhenIRaiseMetric().compute(HandDataset([multiway]), {"player_counts": ["3+"]})
+        self.assertEqual(result["call"], {"count": 1, "pct": 100.0})
+        self.assertEqual(result["reraise"], {"count": 1, "pct": 100.0})
+
+    def test_pfa_gate_precedes_turn_detail_and_keeps_existing_flop_lines(self):
+        lines = {
+            "flop_checkcheck": [action("Hero", "check"), action("Villain", "check")],
+            "flop_call": [action("Villain", "bet"), action("Hero", "call")],
+            "flop_raise": [action("Hero", "bet"), action("Villain", "call")],
+        }
+        for line, flop in lines.items():
+            for raisers, pot_type in ((["Hero"], "srp"), (["Villain", "Hero"], "3bet"),
+                                      (["Hero", "Villain", "Hero"], "4bet"), (["Villain"], "srp")):
+                with self.subTest(line=line, raisers=raisers):
+                    hand = make_hand(preflop_line(raisers) + flop + [action("Hero", "bet", "turn", 75), action("Villain", "fold", "turn")])
+                    opts = {"pot_types": [pot_type], "streets": ["turn"], "turn_detail": True,
+                            "turn_flop_lines": [line], "sizes": ["large"]}
+                    result = WhenIRaiseMetric().compute(HandDataset([hand]), opts)
+                    eligible = raisers[-1] == "Hero"
+                    self.assertEqual(result["all_fold"]["count"], int(eligible))
+                    self.assertEqual(hand_matches_raise_options(hand, opts), eligible)
+                    self.assertEqual(get_replay(HandDataset([hand]), "when_i_raise", 0, opts)["total"], int(eligible))
+
+    def test_showdown_and_replay_apply_pot_type_with_all_spot_filters(self):
+        base = make_hand(preflop_line(["Villain", "Hero"]) + [action("Hero", "bet", amount=33), action("Villain", "call")],
+                         cards={"Villain": ("As", "Kh")})
+        hands = [base, replace(base, hand_id="unknown", shown_cards={}),
+                 make_hand(preflop_line(["Hero"]) + base.actions[-2:], hand_id="srp", cards={"Villain": ("Ah", "Ad")}),
+                 make_hand(preflop_line(["Hero", "Villain"]) + base.actions[-2:], hand_id="not-pfa", cards={"Villain": ("Ah", "Ad")}),
+                 replace(base, hand_id="large", actions=base.actions[:-2] + [replace(base.actions[-2], amount=75), base.actions[-1]]),
+                 make_hand(preflop_line(["Villain", "Hero"]) + base.actions[-2:], hand_id="other-position", hero="BB", opponent="BTN")]
+        opts = {"pot_types": ["3bet"], "streets": ["flop"], "sizes": ["small"], "player_counts": ["2"],
+                "hero_positions": ["BTN"], "opponent_positions": ["BB"], "flop_detail": True, "flop_textures": {"has_ace": True}}
+        result = WhenIRaiseMetric().compute(HandDataset(hands), opts)
+        self.assertEqual((result["spot_count"], result["hand_count"]), (2, 2))
+        grid = result["opponent_showdown_grid"]
+        self.assertEqual((grid["total_hands"], grid["revealed_hands"]), (2, 1))
+        self.assertEqual([c for c in grid["cells"] if c["count"]], [{"hand": "AKo", "count": 1, "pct": 50.0}])
+        self.assertEqual(get_replay(HandDataset(hands), "when_i_raise", 0, opts)["total"], 2)
+        self.assertFalse(hand_matches_raise_options(base, {**opts, "flop_textures": {"has_ace": False}}))
+
+    def test_parsed_gg_and_coinpoker_final_aggressor_context(self):
+        for header, currency in (
+            ("Poker Hand #GG-PFA: Hold'em No Limit ($0.50/$1) - 2026/09/12 12:00:00", "$"),
+            ("CoinPoker Hand #CP-PFA: NLH (₮0.50/₮1) 2026/09/12 12:00:00 EDT", "₮"),
+        ):
+            with self.subTest(header=header):
+                hand = parse_hand(f"""{header}
+Table 'PFA Test' 6-max Seat #1 is the button
+Seat 1: Hero ({currency}100 in chips)
+Seat 2: Small ({currency}100 in chips)
+Seat 3: Villain ({currency}100 in chips)
+Small: posts small blind {currency}0.50
+Villain: posts big blind {currency}1
+*** HOLE CARDS ***
+Small: folds
+Villain: raises {currency}2 to {currency}3
+Hero: raises {currency}6 to {currency}9
+Villain: calls {currency}6
+*** FLOP *** [As 7h 2h]
+Villain: checks
+Hero: bets {currency}5
+Villain: calls {currency}5
+*** SUMMARY ***
+Total pot {currency}28.50 | Rake {currency}0
+""")
+                self.assertIsNotNone(hand)
+                context = classify_preflop_aggressor_context(hand)
+                self.assertEqual((context.raise_count, context.pot_type, context.final_aggressor), (2, "3bet", "Hero"))
+                result = WhenIRaiseMetric().compute(HandDataset([hand]), {"pot_types": ["3bet"], "sizes": ["small"]})
+                self.assertEqual((result["spot_count"], result["hand_count"]), (1, 1))
+                self.assertEqual(result["call"], {"count": 1, "pct": 100.0})
 
 
 if __name__ == "__main__":

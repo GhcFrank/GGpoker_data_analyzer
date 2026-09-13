@@ -74,12 +74,19 @@
     { id: "5bet", label: "5bet" },
   ];
 
-  const wirStreetOpts = [
+  const wicStreetOpts = [
     { id: "ALL", label: "ALL" },
     { id: "preflop", label: "Preflop" },
     { id: "flop", label: "Flop" },
     { id: "turn", label: "Turn" },
     { id: "river", label: "River" },
+  ];
+  const wirStreetOpts = wicStreetOpts.filter((opt) => opt.id !== "preflop");
+  const wirPotTypeOpts = [
+    { id: "srp", label: "Single Raised Pot" },
+    { id: "3bet", label: "3-Bet Pot" },
+    { id: "4bet", label: "4-Bet Pot" },
+    { id: "5bet", label: "5-Bet Pot" },
   ];
   const wirPlayerOpts = [
     { id: "2", label: "2人" },
@@ -253,6 +260,11 @@
   }
 
   function setupWhenIRaiseFilters() {
+    fillChipGroup($("#wirPotTypeGroup"), wirPotTypeOpts, {
+      multi: true,
+      name: "wir-pot-type",
+      checkedIds: new Set(wirPotTypeOpts.map((o) => o.id)),
+    });
     fillChipGroup($("#wirStreetGroup"), wirStreetOpts, {
       multi: true,
       name: "wir-street",
@@ -269,6 +281,15 @@
       checkedIds: new Set(wirSizeOpts.map((o) => o.id)),
     });
     syncWhenIRaisePositionUI();
+    for (const [buttonId, groupId] of [
+      ["#wirHeroPositionUnselectAll", "#wirHeroPositionGroup"],
+      ["#wirOpponentPositionUnselectAll", "#wirOpponentPositionGroup"],
+    ]) {
+      $(buttonId).addEventListener("click", () => {
+        document.querySelectorAll(`${groupId} input`).forEach((input) => { input.checked = false; });
+        scheduleWhenIRaiseRefresh();
+      });
+    }
     fillFlopTextureControls($("#wirFlopTextureGroup"));
     fillTurnFlopLineControls($("#wirTurnFlopLineGroup"));
     const flopDetailEnable = $("#wirFlopDetailEnable");
@@ -637,6 +658,7 @@
 
   function readWhenIRaiseOptions() {
     syncWhenIRaisePositionUI();
+    const pot_types = [...document.querySelectorAll("#wirPotTypeGroup input:checked")].map((el) => el.value);
     const flop_detail = isFlopDetailEnabled();
     const turn_detail = isTurnDetailEnabled();
     let streets = [...document.querySelectorAll("#wirStreetGroup input:checked")].map(
@@ -659,6 +681,7 @@
       (el) => el.value
     );
     const options = {
+      pot_types,
       streets,
       flop_detail,
       turn_detail,
@@ -696,7 +719,7 @@
   }
 
   function setupWhenICallFilters() {
-    fillChipGroup($("#wicStreetGroup"), wirStreetOpts, {
+    fillChipGroup($("#wicStreetGroup"), wicStreetOpts, {
       multi: true,
       name: "wic-street",
       checkedIds: new Set(["ALL"]),

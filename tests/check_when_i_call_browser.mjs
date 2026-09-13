@@ -40,11 +40,23 @@ import poker.service
 from poker.models import HandDataset
 from poker.service import AnalysisService
 from tests.test_when_i_call import make_hand, call_line, action
+from tests.test_when_i_raise import preflop_line
 
 hands = [make_hand(call_line() + call_line('turn') + call_line('river'), hand_id='triple', cards={'Villain': ('As', 'Kh')}),
          make_hand(hand_id='unknown'), make_hand(hand_id='suited', cards={'Villain': ('As', 'Ks')}),
          make_hand(hand_id='nine', max_players=9, hero='BB', opponent='BTN'),
          make_hand([action('Hero', 'bet'), action('Villain', 'raise'), action('Hero', 'call')], hand_id='raise-call')]
+# WIR-only aggression fixtures leave the existing WIC sample counts unchanged.
+for hand_id, raisers, cards in (
+    ('wir-srp', ['Hero'], {'Villain': ('Ah', 'Ad')}),
+    ('wir-3bet', ['Villain', 'Hero'], {'Villain': ('As', 'Kh')}),
+    ('wir-3bet-unknown', ['Villain', 'Hero'], {}),
+    ('wir-6bet', ['Hero', 'Villain', 'Hero', 'Villain', 'Hero'], {'Villain': ('Qc', 'Qd')}),
+):
+    hands.append(make_hand(preflop_line(raisers) + [
+        action('Hero', 'bet', 'flop', 33), action('Villain', 'call', 'flop', 33),
+        action('Hero', 'bet', 'turn', 75), action('Villain', 'fold', 'turn'),
+    ], hand_id=hand_id, cards=cards))
 class ReviewService(AnalysisService):
     def reload(self):
         self._dataset = HandDataset(hands)
@@ -87,18 +99,21 @@ server.serve_forever()
   }
   await send('Page.enable');
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
-  await send('Page.navigate', { url: appUrl });
-  // Wait for the new document before evaluating the scenarios in its context.
-  for (let attempt = 0; attempt < 100; attempt++) {
-    const ready = await send('Runtime.evaluate', { expression: '!!document.querySelector("#wicStreetGroup input")', returnByValue: true });
-    if (ready.result.value) break;
-    await new Promise(resolve => setTimeout(resolve, 30));
+  for (const scenario of ['when_i_call_browser_scenarios.js', 'when_i_raise_browser_scenarios.js']) {
+    // A fresh document keeps each panel's regression scenarios independent.
+    await send('Page.navigate', { url: 'about:blank' });
+    await send('Page.navigate', { url: appUrl });
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const ready = await send('Runtime.evaluate', { expression: '!!document.querySelector("#wicStreetGroup input")', returnByValue: true });
+      if (ready.result.value) break;
+      await new Promise(resolve => setTimeout(resolve, 30));
+    }
+    const expression = await fs.readFile(path.join(testDir, scenario), 'utf8');
+    const outcome = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+    if (outcome.exceptionDetails || !outcome.result?.value?.ok) throw Error(JSON.stringify(outcome, null, 2));
+    console.log(`PASS: ${scenario}: ${outcome.result.value.passed.length} browser checks`);
+    console.log(outcome.result.value.passed.join('\n'));
   }
-  const expression = await fs.readFile(path.join(testDir, 'when_i_call_browser_scenarios.js'), 'utf8');
-  const outcome = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-  if (outcome.exceptionDetails || !outcome.result?.value?.ok) throw Error(JSON.stringify(outcome, null, 2));
-  console.log(`PASS: ${outcome.result.value.passed.length} browser checks`);
-  console.log(outcome.result.value.passed.join('\n'));
 } finally {
   if (socket) socket.close();
   await Promise.all(processes.map(async child => {

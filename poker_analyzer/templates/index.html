@@ -127,8 +127,9 @@
         <div class="panel-head">
           <div>
             <h2>When I Raise</h2>
-            <p class="panel-desc">统计 Hero 下注/加注后，对手全弃牌、跟注、再加注的频率。默认 General（条件全选）等于不限制该轴。</p>
-            <p class="panel-desc">Size 定义：Small：(0%, 40%]；Medium：(40%, 60%]；Large：(60%, 99%]；Overbet：&gt;99%。</p>
+            <p class="panel-desc">仅分析 Hero 是进入 Flop 时最后一个翻前进攻者的手牌；统计 Hero 在 Flop / Turn / River 下注或加注后，对手全弃、跟注或再加注的频率。</p>
+            <p class="panel-desc">Pot Type 按翻前 raise 次数划分：SRP=1次，3-Bet=2次，4-Bet=3次，5-Bet=4次。默认全选四类；6-Bet 及以上不计入。Street 的 ALL 表示 Flop + Turn + River。</p>
+            <p class="panel-desc">Size 指 Hero 当前街的下注/加注大小。Small：(0%, 40%]；Medium：(40%, 60%]；Large：(60%, 99%]；Overbet：&gt;99%。</p>
           </div>
           <div class="panel-head-aside">
             <button type="button" class="btn ghost" id="wirReplayBtn">数据可视化</button>
@@ -136,6 +137,10 @@
         </div>
 
         <div class="metric-filter" id="whenIRaiseFilters">
+          <div class="metric-filter-row">
+            <span class="field-label">Pot Type</span>
+            <div class="stakes-group" id="wirPotTypeGroup"></div>
+          </div>
           <div class="metric-filter-row">
             <span class="field-label">游戏轮次</span>
             <div class="stakes-group" id="wirStreetGroup"></div>
@@ -179,15 +184,17 @@
           <div class="metric-filter-row wir-position-row" id="wirHeroPositionRow" hidden>
             <span class="field-label">Hero Position</span>
             <div class="stakes-group" id="wirHeroPositionGroup"></div>
+            <button type="button" class="stake-chip-btn" id="wirHeroPositionUnselectAll" aria-label="Hero Position: Unselect All">Unselect All</button>
           </div>
           <div class="metric-filter-row wir-position-row" id="wirOpponentPositionRow" hidden>
             <span class="field-label">Opponent Position</span>
             <div class="stakes-group" id="wirOpponentPositionGroup"></div>
+            <button type="button" class="stake-chip-btn" id="wirOpponentPositionUnselectAll" aria-label="Opponent Position: Unselect All">Unselect All</button>
           </div>
         </div>
 
         <div class="stat-row" id="whenIRaiseStats"></div>
-        <p class="empty-hint" id="whenIRaiseEmpty" hidden>当前条件下没有 Hero 下注/加注样本。</p>
+        <p class="empty-hint" id="whenIRaiseEmpty" hidden>当前条件下没有 Hero 作为最后翻前进攻者进入 Flop 后的下注/加注样本。</p>
 
         <section class="wir-showdown" aria-labelledby="wirShowdownTitle">
           <h3 id="wirShowdownTitle">对手亮牌手牌分布</h3>
@@ -612,6 +619,6 @@
 
   <script src="/static/js/replay.js"></script>
   <script src="/static/js/tools.js"></script>
-  <script src="/static/js/app.js?v=when-i-call-1"></script>
+  <script src="/static/js/app.js?v=wir-unselect-all-1"></script>
 </body>
 </html>
