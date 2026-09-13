@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any, Iterable, Literal
 
 from poker.board_texture import FLOP_FILTER_KEYS, flop_texture_matches
 from poker.equity import RANK_ORDER, UNKNOWN_COMBO, hole_combo_label
@@ -16,7 +16,9 @@ POSTFLOP_STREETS = frozenset({"flop", "turn", "river"})
 POT_TYPE_IDS = ("srp", "3bet", "4bet", "5bet")
 TURN_DETAIL_STREETS = frozenset({"turn", "river"})
 TURN_DETAIL_FLOP_LINES = frozenset({"flop_checkcheck", "flop_call", "flop_raise"})
-SIZE_IDS = ("small", "medium", "large", "overbet")
+BET_SIZE_IDS = ("small", "medium", "large", "overbet")
+SIZE_IDS = ("check", *BET_SIZE_IDS)
+BET_SIZE_ALL = set(BET_SIZE_IDS)
 PLAYER_COUNT_ALL = {"2", "3+"}
 POSITION_ALL = {"IP", "OOP", "OTHER"}
 EXACT_POSITION_ALL = set(POSITION_ORDER)
@@ -35,13 +37,17 @@ class RaiseSpot:
     street: str
     player_count: int
     position: str  # IP | OOP | OTHER
-    size_pct: float
+    action_kind: Literal["aggression", "check"]
+    size_pct: float | None
     all_fold: bool
     has_call: bool
     has_reraise: bool
+    opponent_check: bool
+    opponent_bet: bool
     flop_cards: tuple[str, ...] = ()
     hero_position: str | None = None
     opponent_position: str | None = None
+    opponent: str | None = None
 
 
 @dataclass(frozen=True)
@@ -200,16 +206,35 @@ def _response_flags(hand: Hand, raise_index: int) -> tuple[bool, bool, bool]:
     return all_fold, has_call, has_reraise
 
 
+def _check_response(hand: Hand, check_index: int, opponents: set[str]) -> tuple[bool, bool]:
+    """Classify the single response to one Hero check from subsequent actions."""
+    street = hand.actions[check_index].street
+    saw_check = False
+    saw_aggression = False
+    for act in hand.actions[check_index + 1 :]:
+        if act.street != street or act.is_hero or act.player == "Hero":
+            break
+        if act.player not in opponents:
+            continue
+        if act.action == "check":
+            saw_check = True
+        elif act.action in ("bet", "raise"):
+            saw_aggression = True
+    return saw_check and not saw_aggression, saw_aggression
+
+
 def extract_hero_raise_spots(hand: Hand) -> list[RaiseSpot]:
-    """Each Hero bet or raise that faces at least one opponent still in."""
+    """Extract Hero aggression and ordered Hero-check decisions."""
     spots: list[RaiseSpot] = []
     exact_positions: dict[str, str] | None = None
     for idx, act in enumerate(hand.actions):
         if not act.is_hero:
             continue
-        if act.action not in ("bet", "raise"):
+        if act.action not in ("bet", "raise", "check"):
             continue
-        if act.pot_before <= 0:
+        if act.action in ("bet", "raise") and act.pot_before <= 0:
+            continue
+        if act.action == "check" and act.street not in POSTFLOP_STREETS:
             continue
 
         active = _active_before_index(hand, idx)
@@ -222,8 +247,19 @@ def extract_hero_raise_spots(hand: Hand) -> list[RaiseSpot]:
 
         order = _action_order_for_street(hand, act.street, active)
         position = _classify_position(order)
-        size_pct = round(100.0 * act.amount / act.pot_before, 4)
-        all_fold, has_call, has_reraise = _response_flags(hand, idx)
+        if act.action == "check":
+            opponent_check, opponent_bet = _check_response(hand, idx, opponents)
+            # A last-to-act Hero check has no subsequent opponent response.
+            if not opponent_check and not opponent_bet:
+                continue
+            action_kind: Literal["aggression", "check"] = "check"
+            size_pct = None
+            all_fold = has_call = has_reraise = False
+        else:
+            action_kind = "aggression"
+            size_pct = round(100.0 * act.amount / act.pot_before, 4)
+            all_fold, has_call, has_reraise = _response_flags(hand, idx)
+            opponent_check = opponent_bet = False
         hero_position = opponent_position = None
         if len(active) == 2 and hand_table_format(hand) == "6max":
             if exact_positions is None:
@@ -241,13 +277,17 @@ def extract_hero_raise_spots(hand: Hand) -> list[RaiseSpot]:
                 street=act.street,
                 player_count=len(active),
                 position=position,
+                action_kind=action_kind,
                 size_pct=size_pct,
                 all_fold=all_fold,
                 has_call=has_call,
                 has_reraise=has_reraise,
+                opponent_check=opponent_check,
+                opponent_bet=opponent_bet,
                 flop_cards=hand.flop_cards if act.street in POSTFLOP_STREETS else (),
                 hero_position=hero_position,
                 opponent_position=opponent_position,
+                opponent=next(iter(opponents)) if len(active) == 2 else None,
             )
         )
     return spots
@@ -401,11 +441,15 @@ def _parse_flop_texture_constraints(value: Any) -> dict[str, bool]:
     return out
 
 
-def _size_matches(size_pct: float, selected: list[str]) -> bool:
+def _size_matches(size_pct: float | None, selected: list[str]) -> bool:
     chosen = _axis_selected(selected, SIZE_ALL)
     if not chosen:
         return False
-    if chosen == SIZE_ALL:
+    if size_pct is None:
+        return "check" in chosen
+    # Preserve the previous General behavior for aggression, including odd
+    # normalized nonpositive amounts, whenever all four bet buckets are chosen.
+    if BET_SIZE_ALL.issubset(chosen):
         return True
     return (
         ("small" in chosen and 0 < size_pct <= 40)
@@ -511,40 +555,37 @@ def _spot_matches(
 
 
 def hand_matches_raise_options(hand: Hand, options: dict[str, Any] | None) -> bool:
-    """True if an eligible final-PFA hand has a matching postflop aggression."""
+    """True if an eligible final-PFA hand has a matching postflop decision."""
     opts = options or {}
     if not hand_allowed_for_when_i_raise(hand, opts):
+        return False
+    replay_outcome = opts.get("replay_outcome")
+    if replay_outcome is not None and replay_outcome not in {
+        "all_fold", "call", "reraise", "opponent_check", "opponent_bet",
+    }:
         return False
     flop_line = classify_flop_to_turn(hand) if _truthy(opts.get("turn_detail")) else None
     exact_position_mode = _uses_exact_positions(hand, opts)
     return any(
         s.street in POSTFLOP_STREETS
         and _spot_matches(s, opts, flop_line=flop_line, exact_position_mode=exact_position_mode)
+        and (
+            replay_outcome is None
+            or (replay_outcome == "all_fold" and s.all_fold)
+            or (replay_outcome == "call" and s.has_call)
+            or (replay_outcome == "reraise" and s.has_reraise)
+            or (replay_outcome == "opponent_check" and s.opponent_check)
+            or (replay_outcome == "opponent_bet" and s.opponent_bet)
+        )
         for s in extract_hero_raise_spots(hand)
     )
 
 
-def _heads_up_revealed_combo(hand: Hand) -> str | None:
-    """Resolve cards only after a hand has a matching heads-up raise spot.
-
-    Active players only leave via folds. Thus every heads-up Hero aggression
-    in a hand, including the matching spots, must face the same opponent.
-    One pass over normalized actions preserves RaiseSpot and its extraction.
-    """
-    active = set(hand.seat_names.values())
-    if len(active) != len(hand.seat_names):
-        return None  # Duplicate player names cannot identify a unique seat.
-    opponents: set[str] = set()
-    for action in hand.actions:
-        if (
-            action.is_hero and action.action in ("bet", "raise")
-            and action.pot_before > 0 and "Hero" in active and len(active) == 2
-        ):
-            if action.player != "Hero":
-                return None
-            opponents.update(active - {"Hero"})
-        if action.action == "fold":
-            active.discard(action.player)
+def _heads_up_revealed_combo(hand: Hand, spots: list[RaiseSpot]) -> str | None:
+    """Resolve the unique opponent attached to matching heads-up spots."""
+    if len(set(hand.seat_names.values())) != len(hand.seat_names):
+        return None
+    opponents = {spot.opponent for spot in spots if spot.player_count == 2 and spot.opponent}
     if len(opponents) != 1:
         return None
     combo = hole_combo_label(player_cards(hand, next(iter(opponents))))
@@ -557,7 +598,7 @@ class WhenIRaiseMetric(Metric):
 
     id = "when_i_raise"
     name = "When I Raise"
-    description = "Hero 作为最后翻前进攻者进入 Flop 后，下注/加注面对的对手全弃 / 跟注 / 再加注频率"
+    description = "Hero 作为最后翻前进攻者进入 Flop 后的下注/加注响应与 Check 后续行动"
     chart_type = "stats"
 
     def compute(self, dataset: HandDataset, options: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -583,20 +624,24 @@ class WhenIRaiseMetric(Metric):
             if hand_spots:
                 hands_with_spot += 1
                 if heads_up_grid:
-                    combo = _heads_up_revealed_combo(hand)
+                    combo = _heads_up_revealed_combo(hand, hand_spots)
                     if combo is not None:
                         revealed_counts[combo] = revealed_counts.get(combo, 0) + 1
             spots.extend(hand_spots)
 
         n = len(spots)
-        all_fold_n = sum(1 for s in spots if s.all_fold)
-        call_n = sum(1 for s in spots if s.has_call)
-        reraise_n = sum(1 for s in spots if s.has_reraise)
+        aggression_spots = [spot for spot in spots if spot.action_kind == "aggression"]
+        check_spots = [spot for spot in spots if spot.action_kind == "check"]
+        all_fold_n = sum(1 for s in aggression_spots if s.all_fold)
+        call_n = sum(1 for s in aggression_spots if s.has_call)
+        reraise_n = sum(1 for s in aggression_spots if s.has_reraise)
+        opponent_check_n = sum(1 for s in check_spots if s.opponent_check)
+        opponent_bet_n = sum(1 for s in check_spots if s.opponent_bet)
 
-        def pct(count: int) -> float | None:
-            if n <= 0:
+        def pct(count: int, denominator: int) -> float | None:
+            if denominator <= 0:
                 return None
-            return round(100.0 * count / n, 2)
+            return round(100.0 * count / denominator, 2)
 
         streets = _selected_streets(opts)
         flop_detail = _truthy(opts.get("flop_detail"))
@@ -622,9 +667,11 @@ class WhenIRaiseMetric(Metric):
             "name": self.name,
             "spot_count": n,
             "hand_count": hands_with_spot,
-            "all_fold": {"count": all_fold_n, "pct": pct(all_fold_n)},
-            "call": {"count": call_n, "pct": pct(call_n)},
-            "reraise": {"count": reraise_n, "pct": pct(reraise_n)},
+            "all_fold": {"count": all_fold_n, "pct": pct(all_fold_n, len(aggression_spots))},
+            "call": {"count": call_n, "pct": pct(call_n, len(aggression_spots))},
+            "reraise": {"count": reraise_n, "pct": pct(reraise_n, len(aggression_spots))},
+            "opponent_check": {"count": opponent_check_n, "pct": pct(opponent_check_n, len(check_spots))},
+            "opponent_bet": {"count": opponent_bet_n, "pct": pct(opponent_bet_n, len(check_spots))},
             "opponent_showdown_grid": opponent_showdown_grid,
             "options": {
                 "pot_types": [key for key in POT_TYPE_IDS if key in _selected_pot_types(opts)],
@@ -635,7 +682,7 @@ class WhenIRaiseMetric(Metric):
                 if turn_detail
                 else [],
                 "player_counts": _as_str_list(opts.get("player_counts")) or sorted(PLAYER_COUNT_ALL),
-                "sizes": _as_str_list(opts.get("sizes")) or list(SIZE_IDS),
+                "sizes": _as_str_list(opts.get("sizes")) if "sizes" in opts else list(SIZE_IDS),
                 "positions": _as_str_list(opts.get("positions")) or sorted(POSITION_ALL),
                 **{
                     key: _as_str_list(opts[key])

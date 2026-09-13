@@ -127,9 +127,9 @@
         <div class="panel-head">
           <div>
             <h2>When I Raise</h2>
-            <p class="panel-desc">仅分析 Hero 是进入 Flop 时最后一个翻前进攻者的手牌；统计 Hero 在 Flop / Turn / River 下注或加注后，对手全弃、跟注或再加注的频率。</p>
+            <p class="panel-desc">仅分析 Hero 是进入 Flop 时最后一个翻前进攻者的手牌；统计 Hero 下注/加注后的 All Fold / Call / Reraise，以及 Hero check 后的 Opponent Check / Bet。</p>
             <p class="panel-desc">Pot Type 按翻前 raise 次数划分：SRP=1次，3-Bet=2次，4-Bet=3次，5-Bet=4次。默认全选四类；6-Bet 及以上不计入。Street 的 ALL 表示 Flop + Turn + River。</p>
-            <p class="panel-desc">Size 指 Hero 当前街的下注/加注大小。Small：(0%, 40%]；Medium：(40%, 60%]；Large：(60%, 99%]；Overbet：&gt;99%。</p>
+            <p class="panel-desc">Action / Size 中 Check 是独立行动；其他项指 Hero 当前街的下注/加注大小。Small：(0%, 40%]；Medium：(40%, 60%]；Large：(60%, 99%]；Overbet：&gt;99%。</p>
           </div>
           <div class="panel-head-aside">
             <button type="button" class="btn ghost" id="wirReplayBtn">数据可视化</button>
@@ -174,8 +174,9 @@
             <div class="stakes-group" id="wirPlayersGroup"></div>
           </div>
           <div class="metric-filter-row">
-            <span class="field-label">下注 Size</span>
+            <span class="field-label">Hero Action / Size</span>
             <div class="stakes-group" id="wirSizeGroup"></div>
+            <button type="button" class="stake-chip-btn" id="wirActionSizeUnselectAll" aria-label="Hero Action / Size: Unselect All">Unselect All</button>
           </div>
           <div class="metric-filter-row wir-position-row" id="wirRelativePositionRow">
             <span class="field-label">我的位置</span>
@@ -194,7 +195,7 @@
         </div>
 
         <div class="stat-row" id="whenIRaiseStats"></div>
-        <p class="empty-hint" id="whenIRaiseEmpty" hidden>当前条件下没有 Hero 作为最后翻前进攻者进入 Flop 后的下注/加注样本。</p>
+        <p class="empty-hint" id="whenIRaiseEmpty" hidden>当前条件下没有 Hero 作为最后翻前进攻者进入 Flop 后的 matching action 样本。</p>
 
         <section class="wir-showdown" aria-labelledby="wirShowdownTitle">
           <h3 id="wirShowdownTitle">对手亮牌手牌分布</h3>
@@ -217,8 +218,9 @@
         <div class="panel-head">
           <div>
             <h2>When I Call</h2>
-            <p class="panel-desc">统计 Hero 面对对手下注/加注并选择跟注的情况。默认 General（条件全选）等于不限制该轴。</p>
-            <p class="panel-desc">Size 指 Hero 所面对的对手下注/加注大小。Size 定义：Small：(0%, 40%]；Medium：(40%, 60%]；Large：(60%, 99%]；Overbet：&gt;99%。</p>
+            <p class="panel-desc">仅分析 Hero 进入 Flop、翻前至少发生一次 raise、且 Hero 不是最后翻前进攻者的手牌；统计对手进攻后的 Fold / Call / Raise，以及对手 check 到 Hero 后的 Check / Bet。</p>
+            <p class="panel-desc">Pot Type 按翻前 raise 次数划分：SRP=1次，3-Bet=2次，4-Bet=3次，5-Bet=4次。默认全选四类；6-Bet 及以上不计入。Street 的 ALL 表示 Flop + Turn + River。</p>
+            <p class="panel-desc">Action / Size 中 Check 是独立行动；其他项指 Hero 正在面对的对手下注/加注大小。Small：(0%, 40%]；Medium：(40%, 60%]；Large：(60%, 99%]；Overbet：&gt;99%。</p>
           </div>
           <div class="panel-head-aside">
             <button type="button" class="btn ghost" id="wicReplayBtn" disabled>数据可视化</button>
@@ -226,6 +228,10 @@
         </div>
 
         <div class="metric-filter" id="whenICallFilters">
+          <div class="metric-filter-row">
+            <span class="field-label">Pot Type</span>
+            <div class="stakes-group" id="wicPotTypeGroup"></div>
+          </div>
           <div class="metric-filter-row">
             <span class="field-label">游戏轮次</span>
             <div class="stakes-group" id="wicStreetGroup"></div>
@@ -259,8 +265,9 @@
             <div class="stakes-group" id="wicPlayersGroup"></div>
           </div>
           <div class="metric-filter-row">
-            <span class="field-label">对手下注 Size</span>
+            <span class="field-label">Opponent Action / Size</span>
             <div class="stakes-group" id="wicSizeGroup"></div>
+            <button type="button" class="stake-chip-btn" id="wicActionSizeUnselectAll" aria-label="Opponent Action / Size: Unselect All">Unselect All</button>
           </div>
           <div class="metric-filter-row wir-position-row" id="wicRelativePositionRow">
             <span class="field-label">我的位置</span>
@@ -269,19 +276,21 @@
           <div class="metric-filter-row wir-position-row" id="wicHeroPositionRow" hidden>
             <span class="field-label">Hero Position</span>
             <div class="stakes-group" id="wicHeroPositionGroup"></div>
+            <button type="button" class="stake-chip-btn" id="wicHeroPositionUnselectAll" aria-label="Hero Position: Unselect All">Unselect All</button>
           </div>
           <div class="metric-filter-row wir-position-row" id="wicOpponentPositionRow" hidden>
             <span class="field-label">Opponent Position</span>
             <div class="stakes-group" id="wicOpponentPositionGroup"></div>
+            <button type="button" class="stake-chip-btn" id="wicOpponentPositionUnselectAll" aria-label="Opponent Position: Unselect All">Unselect All</button>
           </div>
         </div>
 
         <div class="stat-row" id="whenICallStats"></div>
-        <p class="empty-hint" id="whenICallEmpty" hidden>当前条件下没有 Hero 面对对手下注/加注并跟注的样本。</p>
+        <p class="empty-hint" id="whenICallEmpty" hidden>当前条件下没有符合翻前身份的 matching postflop Hero decision 样本。</p>
 
         <section class="wir-showdown" aria-labelledby="wicShowdownTitle">
           <h3 id="wicShowdownTitle">对手亮牌手牌分布</h3>
-          <p class="panel-desc">仅统计当前筛选条件下最终能看到的被跟注对手底牌；百分比以“涉及手数”为分母。未亮牌的手牌不进入任何格子。</p>
+          <p class="panel-desc">仅统计当前筛选条件下至少存在一个 matching WIC decision 的手牌；每手最多计入一次，百分比以“涉及手数”为分母。未亮牌的手牌不进入任何格子。</p>
           <p class="panel-desc" id="wicShowdownStatus" role="status">对手亮牌手牌分布目前仅支持 2 人 pot。请选择 Player Count = 2人。</p>
           <div class="hand-matrix" id="wicShowdownWrap" hidden tabindex="0" role="region" aria-label="对手亮牌手牌分布，可横向滚动">
             <table class="wir-hand-grid" aria-label="对手亮牌 13×13 起手牌分布">
@@ -619,6 +628,6 @@
 
   <script src="/static/js/replay.js"></script>
   <script src="/static/js/tools.js"></script>
-  <script src="/static/js/app.js?v=wir-unselect-all-1"></script>
+  <script src="/static/js/app.js?v=action-size-unselect-1"></script>
 </body>
 </html>
