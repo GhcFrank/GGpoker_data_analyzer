@@ -13,6 +13,7 @@ from poker.positions.six_max import POSITION_ORDER, position_map
 
 STREETS = ("preflop", "flop", "turn", "river")
 POSTFLOP_STREETS = frozenset({"flop", "turn", "river"})
+POT_TYPE_IDS = ("srp", "3bet", "4bet", "5bet")
 TURN_DETAIL_STREETS = frozenset({"turn", "river"})
 TURN_DETAIL_FLOP_LINES = frozenset({"flop_checkcheck", "flop_call", "flop_raise"})
 SIZE_IDS = ("small", "medium", "large", "overbet")
@@ -41,6 +42,46 @@ class RaiseSpot:
     flop_cards: tuple[str, ...] = ()
     hero_position: str | None = None
     opponent_position: str | None = None
+
+
+@dataclass(frozen=True)
+class PreflopAggressorContext:
+    raise_count: int
+    pot_type: str | None
+    final_aggressor: str | None
+    hero_is_final_aggressor: bool
+
+
+def classify_preflop_aggressor_context(hand: Hand) -> PreflopAggressorContext:
+    """Classify preflop raises only, independently of who reaches postflop."""
+    raises = [act for act in hand.actions if act.street == "preflop" and act.action == "raise"]
+    count = len(raises)
+    final_aggressor = raises[-1].player if raises else None
+    return PreflopAggressorContext(
+        raise_count=count,
+        pot_type=POT_TYPE_IDS[count - 1] if 1 <= count <= len(POT_TYPE_IDS) else None,
+        final_aggressor=final_aggressor,
+        hero_is_final_aggressor=final_aggressor == "Hero",
+    )
+
+
+def _selected_pot_types(options: dict[str, Any]) -> set[str]:
+    if "pot_types" not in options:
+        return set(POT_TYPE_IDS)
+    return _axis_selected(_as_str_list(options.get("pot_types")), set(POT_TYPE_IDS))
+
+
+def hand_allowed_for_when_i_raise(hand: Hand, options: dict[str, Any]) -> bool:
+    """WIR-only hand gate; shared spot helpers and WIC do not apply this rule."""
+    context = classify_preflop_aggressor_context(hand)
+    if not context.hero_is_final_aggressor or context.pot_type not in _selected_pot_types(options):
+        return False
+    # The parser sets went_to_flop from street markers and summary boards.
+    # Normalized board/actions also provide evidence for callers building Hands.
+    return (
+        hand.went_to_flop or len(hand.flop_cards) >= 3
+        or any(act.street in POSTFLOP_STREETS for act in hand.actions)
+    )
 
 
 def _seat_order_clockwise(seats: Iterable[int], start_seat: int) -> list[int]:
@@ -470,12 +511,15 @@ def _spot_matches(
 
 
 def hand_matches_raise_options(hand: Hand, options: dict[str, Any] | None) -> bool:
-    """True if this hand has at least one Hero raise spot matching options."""
+    """True if an eligible final-PFA hand has a matching postflop aggression."""
     opts = options or {}
+    if not hand_allowed_for_when_i_raise(hand, opts):
+        return False
     flop_line = classify_flop_to_turn(hand) if _truthy(opts.get("turn_detail")) else None
     exact_position_mode = _uses_exact_positions(hand, opts)
     return any(
-        _spot_matches(s, opts, flop_line=flop_line, exact_position_mode=exact_position_mode)
+        s.street in POSTFLOP_STREETS
+        and _spot_matches(s, opts, flop_line=flop_line, exact_position_mode=exact_position_mode)
         for s in extract_hero_raise_spots(hand)
     )
 
@@ -509,11 +553,11 @@ def _heads_up_revealed_combo(hand: Hand) -> str | None:
 
 @register
 class WhenIRaiseMetric(Metric):
-    """Frequency of fold / call / reraise when Hero bets or raises."""
+    """Postflop responses when Hero entered the flop as final preflop raiser."""
 
     id = "when_i_raise"
     name = "When I Raise"
-    description = "当 Hero 下注/加注时，对手全弃 / 跟注 / 再加注的频率"
+    description = "Hero 作为最后翻前进攻者进入 Flop 后，下注/加注面对的对手全弃 / 跟注 / 再加注频率"
     chart_type = "stats"
 
     def compute(self, dataset: HandDataset, options: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -526,12 +570,15 @@ class WhenIRaiseMetric(Metric):
         turn_detail = _truthy(opts.get("turn_detail"))
 
         for hand in dataset.sorted_hands():
+            if not hand_allowed_for_when_i_raise(hand, opts):
+                continue
             flop_line = classify_flop_to_turn(hand) if turn_detail else None
             exact_position_mode = _uses_exact_positions(hand, opts)
             hand_spots = [
                 s
                 for s in extract_hero_raise_spots(hand)
-                if _spot_matches(s, opts, flop_line=flop_line, exact_position_mode=exact_position_mode)
+                if s.street in POSTFLOP_STREETS
+                and _spot_matches(s, opts, flop_line=flop_line, exact_position_mode=exact_position_mode)
             ]
             if hand_spots:
                 hands_with_spot += 1
@@ -580,7 +627,8 @@ class WhenIRaiseMetric(Metric):
             "reraise": {"count": reraise_n, "pct": pct(reraise_n)},
             "opponent_showdown_grid": opponent_showdown_grid,
             "options": {
-                "streets": sorted(streets) if streets is not None else ["ALL"],
+                "pot_types": [key for key in POT_TYPE_IDS if key in _selected_pot_types(opts)],
+                "streets": sorted(streets & POSTFLOP_STREETS) if streets is not None else ["ALL"],
                 "flop_detail": flop_detail,
                 "turn_detail": turn_detail,
                 "turn_flop_lines": sorted(_parse_turn_detail_lines(opts.get("turn_flop_lines")))

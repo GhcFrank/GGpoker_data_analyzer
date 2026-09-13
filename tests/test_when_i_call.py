@@ -315,8 +315,17 @@ Board [2c 3d 4h 8s]
                 self.assertEqual((result["spot_count"], result["hand_count"]), (3, 1))
                 self.assertEqual(result["facing_raise"], {"count": 2, "pct": 66.67})
                 self.assertEqual(result["opponent_showdown_grid"]["revealed_hands"], 1)
-                # The existing Hero turn bet still has the same WIR response.
-                wir = WhenIRaiseMetric().compute(HandDataset([hand]))
+                # WIC keeps the original caller hand and all expectations above.
+                # Its non-PFA preflop context is now ineligible for WIR.
+                self.assertEqual(WhenIRaiseMetric().compute(HandDataset([hand]))["spot_count"], 0)
+                # Check the same turn response with separate eligible WIR context.
+                wir_hand = replace(hand, actions=[
+                    act for act in hand.actions if act.street == "preflop" and act.action == "fold"
+                ] + [
+                    action("Hero", "raise", "preflop", amount=4, pot=1.5),
+                    action("Villain", "call", "preflop", amount=3, pot=5.5),
+                ] + [act for act in hand.actions if act.street != "preflop"])
+                wir = WhenIRaiseMetric().compute(HandDataset([wir_hand]))
                 self.assertEqual(wir["spot_count"], 1)
                 self.assertEqual(wir["reraise"], {"count": 1, "pct": 100.0})
 

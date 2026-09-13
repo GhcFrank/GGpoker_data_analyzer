@@ -22,13 +22,13 @@ python app.py
 ## 功能
 
 - **盈利曲线**：按手数看累计盈亏（费用前 / 费用后两条线）
-- **When I Raise**：你下注或加注后，对手弃牌 / 跟注 / 再加注的频率；可按轮次、人数、位置、下注 size、Flop 牌面细分
+- **When I Raise**：针对 Hero 是进入 Flop 时最后一个翻前进攻者的牌局，按 SRP / 3-Bet / 4-Bet / 5-Bet Pot 分类，分析 Hero 在 Flop / Turn / River 下注或加注后对手的 All Fold / Call / Reraise；保留人数、位置、Hero 下注 size、Flop/Turn 细分、对手亮牌范围及回放。Pot Type 只按翻前 raise 次数划分（1/2/3/4 次），不计入 6-Bet 及以上牌局。
 - **When I Call**：Hero 面对对手下注/加注并跟注的样本分析；支持轮次、人数、位置、对手下注 size、Flop/Turn 细分、单挑对手亮牌范围及筛选手牌回放。6-max 单挑可按 Hero / 对手精确位置筛选。
 
 牌谱目录会记住，下次启动自动用上次的路径。文件夹里有新牌谱时，点「重新扫描」即可。
 
-## When I Call 验证
+## When I Raise / When I Call 验证
 
 针对性测试：`PYTHONPATH=poker_analyzer python3 -m unittest tests.test_when_i_call tests.test_when_i_raise`。
 
-浏览器回归：`node tests/check_when_i_call_browser.mjs`。需要 Node.js 22+、Python 和本机 Chrome；可用 `PYTHON_BIN` / `CHROME_BIN` 指定可执行文件。脚本用临时牌局启动本地服务，检查筛选、亮牌矩阵、回放、异步响应和重载，结束后关闭服务并清理临时目录。应用本身仍只依赖 Python 标准库。
+浏览器回归：`node tests/check_when_i_call_browser.mjs`。需要 Node.js 22+、Python 和本机 Chrome；可用 `PYTHON_BIN` / `CHROME_BIN` 指定可执行文件。脚本用临时牌局启动本地服务，分别检查 WIC 原场景和 WIR 的 Pot Type、postflop Street、亮牌矩阵、回放、异步响应和重载，结束后关闭服务并清理临时目录。应用本身仍只依赖 Python 标准库。
